@@ -9,20 +9,15 @@ Setup
 ----------------------------------------------------------------
 GongoDB uses PDO extension to connect databases.
 
-    ```php
-    <?php
     include "gongo.php";
     $pdo = new PDO("mysql:host=localhost;dbname=dbname", "user", "password");
     $db = new Gongo_Db($pdo);
-    ```
 
 
 Define Data Mapper
 ------------------------------------------------------------------------
 Named_scope is defined in a data mapper class.
 
-    ```php
-    <?php
     class Mapper_Book extends Gongo_Db_Mapper
     {
         protected $table = "books";
@@ -45,15 +40,13 @@ Named_scope is defined in a data mapper class.
             ),
         );
     }
-    ```
+
 
 Define Entity Class (Model Class)
 ------------------------------------------------------------------------
 Named_scope can have entity class in each.  
 Gongo_Bean is used as entity class when not specifying an entity class in data mapper class.
 
-    ```php
-    <?php
     class Model_Book extends Gongo_Bean
     {
         function toString()
@@ -61,44 +54,35 @@ Gongo_Bean is used as entity class when not specifying an entity class in data m
             return "Title:{$this->title} Author：{$this->author_name}";
         }
     }
-    ```
+
 
 Load an Entity by Primary Key
 ------------------------------------------------------------------------
 
-    ```php
-    <?php
     $bookMapper = $db->Book;        // instantiate mapper class
     $book = $bookMapper->get(1);    // load an entity
-    ```
+
 
 Save an Entity
 ------------------------------------------------------------------------
 
-    ```php
-    <?php
     $authorMapper = $db->Author;    // instantiate mapper class
     $author = $authorMapper->get(); // instantiate empty entity
     $author->name = "William Gibson";
     $authorMapper->save($author);   // save an entity
-    ```
+
 
 Find an Entity by using named_scope
 ------------------------------------------------------------------------
 
-    ```php
-    <?php
     $book = $bookMapper->q()->findByAuthorName->first('William Gibson');
     // chain of named_scopes
     $book = $bookMapper->q()->bookAuthor->byAuthorName->first('William Gibson');
-    ```
 
 
 Find all Entities by using named_scope
 ------------------------------------------------------------------------
 
-    ```php
-    <?php
     // $books = $bookMapper->q()->findByAuthorName->all('William Gibson');
     // 'all' method is omissible
     $books = $bookMapper->q()->findByAuthorName('William Gibson');
@@ -107,30 +91,23 @@ Find all Entities by using named_scope
         // sql is executed when iteration has started
         echo $book->toString() . "\n";
     }
-    ```
+
 
 LIMIT & ORDER
 ------------------------------------------------------------------------
 
-    ```php
-    <?php
     $books = $bookMapper->q()->findByAuthorName->limit(10)->orderBy('title ASC')->all('William Gibson');
-    ```
 
 You may replace an order. 
 
-    ```php
-    <?php
     $books = $bookMapper->q()->limit(10)->orderBy('title ASC')->findByAuthorName('William Gibson');
-    ```
+
 
 SubQuery
 ------------------------------------------------------------------------
 
 ### Nested Definition ###
 
-    ```php
-    <?php
     class Mapper_Departments extends Gongo_Db_Mapper
     {
         protected $table = "departments";
@@ -148,12 +125,10 @@ SubQuery
             ),
         );
     }
-    ```
+
 
 ### Using another scope ###
 
-    ```php
-    <?php
     class Mapper_Departments extends Gongo_Db_Mapper
     {
         protected $table = "departments";
@@ -170,13 +145,11 @@ SubQuery
             ),
         );
     }
-    ```
+
 
 "AND" and "OR" operators in WHERE clause
 ------------------------------------------------------------------------
 
-    ```php
-    <?php
     class Mapper_Employees extends Gongo_Db_Mapper
     {
         protected $table = "employees";
@@ -190,7 +163,7 @@ SubQuery
             ),
         );
     }
-    ```
+
 
 License
 ------------------------------------------------------------------------
