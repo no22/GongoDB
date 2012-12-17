@@ -1,0 +1,217 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>GongoDB by no22</title>
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+    <script src="javascripts/respond.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <!--[if lt IE 8]>
+    <link rel="stylesheet" href="stylesheets/ie.css">
+    <![endif]-->
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
+  </head>
+  <body>
+      <div id="header">
+        <nav>
+          <li class="fork"><a href="https://github.com/no22/GongoDB">View On GitHub</a></li>
+          <li class="downloads"><a href="https://github.com/no22/GongoDB/zipball/master">ZIP</a></li>
+          <li class="downloads"><a href="https://github.com/no22/GongoDB/tarball/master">TAR</a></li>
+          <li class="title">DOWNLOADS</li>
+        </nav>
+      </div><!-- end header -->
+
+    <div class="wrapper">
+
+      <section>
+        <div id="title">
+          <h1>GongoDB</h1>
+          <p>GongoDB is a SQL friendly ORM for PHP 5 that has named_scope and fluent query builder.   It assembles a query by combining named_scope as a fragment of SQL.   It is suitable for building complicated SQL dynamically.   </p>
+          <hr>
+          <span class="credits left">Project maintained by <a href="https://github.com/no22">no22</a></span>
+          <span class="credits right">Hosted on GitHub Pages &mdash; Theme by <a href="http://twitter.com/#!/michigangraham">mattgraham</a></span>
+        </div>
+
+        <h1>GongoDB</h1>
+
+<p>GongoDB is a SQL friendly ORM for PHP 5 that has named_scope and fluent query builder.<br>
+It assembles a query by combining named_scope as a fragment of SQL.<br>
+It is suitable for building complicated SQL dynamically.  </p>
+
+<h2>Setup</h2>
+
+<p>GongoDB uses PDO extension to connect databases.</p>
+
+<pre><code>include "gongo.php";
+$pdo = new PDO("mysql:host=localhost;dbname=dbname", "user", "password");
+$db = new Gongo_Db($pdo);
+</code></pre>
+
+<h2>Define Data Mapper</h2>
+
+<p>Named_scope is defined in a data mapper class.</p>
+
+<pre><code>class Mapper_Book extends Gongo_Db_Mapper
+{
+    protected $table = "books";
+    protected $namedScopes = array(
+        'bookProperty' =&gt; array(
+            'select' =&gt; array('book.id AS id', 'book.title AS title'),
+        ),
+        'bookAuthor' =&gt; array(
+            'bookProperty',                     // reuse of named_scope
+            'select' =&gt; array('author.name AS author_name'),
+            'join' =&gt; array('author ON author.id = author_id'),
+            'entityclass' =&gt; 'Model_Book',      // named_scope can have entity class in each.
+        ),
+        'byAuthorName' =&gt; array(
+            'where' =&gt; array('author.name = :name'),
+            'params' =&gt; ':name', // order of a named parameter
+        ),
+        'findByAuthorName' =&gt; array(
+            'bookAuthor', 'byAuthorName',
+        ),
+    );
+}
+</code></pre>
+
+<h2>Define Entity Class (Model Class)</h2>
+
+<p>Named_scope can have entity class in each.<br>
+Gongo_Bean is used as entity class when not specifying an entity class in data mapper class.</p>
+
+<pre><code>class Model_Book extends Gongo_Bean
+{
+    function toString()
+    {
+        return "Title:{$this-&gt;title} Author：{$this-&gt;author_name}";
+    }
+}
+</code></pre>
+
+<h2>Load an Entity by Primary Key</h2>
+
+<pre><code>$bookMapper = $db-&gt;Book;        // instantiate mapper class
+$book = $bookMapper-&gt;get(1);    // load an entity
+</code></pre>
+
+<h2>Save an Entity</h2>
+
+<pre><code>$authorMapper = $db-&gt;Author;    // instantiate mapper class
+$author = $authorMapper-&gt;get(); // instantiate empty entity
+$author-&gt;name = "William Gibson";
+$authorMapper-&gt;save($author);   // save an entity
+</code></pre>
+
+<h2>Find an Entity by using named_scope</h2>
+
+<pre><code>$book = $bookMapper-&gt;q()-&gt;findByAuthorName-&gt;first('William Gibson');
+// chain of named_scopes
+$book = $bookMapper-&gt;q()-&gt;bookAuthor-&gt;byAuthorName-&gt;first('William Gibson');
+</code></pre>
+
+<h2>Find all Entities by using named_scope</h2>
+
+<pre><code>// $books = $bookMapper-&gt;q()-&gt;findByAuthorName-&gt;all('William Gibson');
+// 'all' method is omissible
+$books = $bookMapper-&gt;q()-&gt;findByAuthorName('William Gibson');
+// result object is a lazy iterator so sql is not executed yet
+foreach ($books as $book) {
+    // sql is executed when iteration has started
+    echo $book-&gt;toString() . "\n";
+}
+</code></pre>
+
+<h2>LIMIT &amp; ORDER</h2>
+
+<pre><code>$books = $bookMapper-&gt;q()-&gt;findByAuthorName-&gt;limit(10)-&gt;orderBy('title ASC')-&gt;all('William Gibson');
+</code></pre>
+
+<p>You may replace an order. </p>
+
+<pre><code>$books = $bookMapper-&gt;q()-&gt;limit(10)-&gt;orderBy('title ASC')-&gt;findByAuthorName('William Gibson');
+</code></pre>
+
+<h2>SubQuery</h2>
+
+<h3>Nested Definition</h3>
+
+<pre><code>class Mapper_Departments extends Gongo_Db_Mapper
+{
+    protected $table = "departments";
+    protected $namedScopes = array(
+        'findDepartmentsByEmployeesAge' =&gt; array(
+            'where' =&gt; array(
+                '#id IN' =&gt; array(
+                    // nested definition in named_scope
+                    'select' =&gt; array('department_id'),
+                    'from' =&gt; array('employees'),
+                    'where' =&gt; array('age = :age'),
+                ),
+            ),
+            'params' =&gt; ':age',
+        ),
+    );
+}
+</code></pre>
+
+<h3>Using another scope</h3>
+
+<pre><code>class Mapper_Departments extends Gongo_Db_Mapper
+{
+    protected $table = "departments";
+    protected $namedScopes = array(
+        'findByEmployeesAge' =&gt; array(
+            // using another named_scope
+            'where' =&gt; array('#id IN' =&gt; array('departmentIdsByEmployeesAge')),
+            'params' =&gt; ':age',
+        ),
+        'departmentIdsByEmployeesAge' =&gt; array(
+            'select' =&gt; array('department_id'),
+            'from' =&gt; array('employees'),
+            'where' =&gt; array('age = :age'),
+        ),
+    );
+}
+</code></pre>
+
+<h2>"AND" and "OR" operators in WHERE clause</h2>
+
+<pre><code>class Mapper_Employees extends Gongo_Db_Mapper
+{
+    protected $table = "employees";
+    protected $namedScopes = array(
+        'ageAndSex' =&gt; array(
+            'where' =&gt; array('age = :age','sex = :sex'),
+//          'where' =&gt; array(array('$and' =&gt; array('age = :age','sex = :sex'))),
+        ),
+        'ageOrSex' =&gt; array(
+            'where' =&gt; array(array('$or' =&gt; array('age = :age','sex = :sex'))),
+        ),
+    );
+}
+</code></pre>
+
+<h2>License</h2>
+
+<p>GongoDB is dual Licensed MIT and GPLv3. You may choose the license that fits best for your project.</p>
+
+<h2>What is Gongo?</h2>
+
+<ul>
+<li>"Gongo" means a <a href="http://en.wikipedia.org/wiki/Kappa_(folklore)">"Kappa"</a> in the dialect of the Tsuyama region at Okayama prefecture in Japan. </li>
+<li>There is no relationship with MongoDB.</li>
+</ul>
+      </section>
+
+    </div>
+    <!--[if !IE]><script>fixScale(document);</script><![endif]-->
+    
+  </body>
+</html>
