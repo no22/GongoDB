@@ -28,11 +28,14 @@ class Gongo_Db_GoQL
 		'method' => array('method', '___setQuery'),
 		'bind' => array('bind', '___bindValue'),
 		'entityClass' => array('entityclass', '___setQuery'),
+		'fields' => array('fields', '___addQuery'),
+		'ifields' => array('ifields', '___addQuery'),
 	);
 	protected $_clauseMap = array();
 	protected $_defaultMethod = 'all';
 	protected $_returnRowCount = false;
 	protected $_ignoreKeys = array();
+	protected $_wantKeys = array();
 	protected $_arguments = array();
 	protected $_currentParams = null;
 
@@ -72,6 +75,25 @@ class Gongo_Db_GoQL
 	{
 		if (is_null($ignoreKeys)) return $this->_ignoreKeys;
 		$this->_ignoreKeys = $ignoreKeys;
+		return $this;
+	}
+
+	public function addIgnoreKey($key)
+	{
+		$this->_ignoreKeys[] = $key;
+		return $this;
+	}
+	
+	public function wantKeys($wantKeys = null)
+	{
+		if (is_null($wantKeys)) return $this->_wantKeys;
+		$this->_wantKeys = $wantKeys;
+		return $this;
+	}
+
+	public function addWantKey($key)
+	{
+		$this->_wantKeys[] = $key;
 		return $this;
 	}
 	

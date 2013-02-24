@@ -11,6 +11,9 @@ class Gongo_Db_Mapper
 	protected $createdDateColumn = 'created';
 	protected $modifiedDateColumn = 'modified';
 	protected $quote = '`';
+	public $relation = array();
+	protected $defaultTableAlias = 't';
+	protected $joinMapper = null;
 	
 	function __construct($db = null, $table = null, $pk = null, $namedScopes = null, $queryWriter = null)
 	{
@@ -90,19 +93,41 @@ class Gongo_Db_Mapper
 		return $this;
 	}
 
+	function relation($value = null)
+	{
+		if (is_null($value)) return $this->relation;
+		$this->relation = $value;
+		return $this;
+	}
+	
+	function addRelation($value)
+	{
+		$this->relation[] = $value;
+		return $this;
+	}
+
 	function currentDateTime()
 	{
 		return date('Y-m-d H:i:s');
 	}
-	
-	function finder() { return $this->query(); }
-	function q() { return $this->query(); }
 
-	function query()
+	function joinMapper($value = null)
 	{
-		return Gongo_Locator::get('Gongo_Db_QueryBuilder', $this);
+		if (is_null($value)) return $this->joinMapper;
+		$this->joinMapper = $value;
+		return $this;
 	}
 	
+	function finder($fields = null, $inner = false) { return $this->query($fields, $inner); }
+	function q($fields = null, $inner = false) { return $this->query($fields, $inner); }
+	function select($fields = null, $inner = false) { return $this->query($fields, $inner); }
+
+	function query($fields = null, $inner = false, $q = null)
+	{
+		$q = is_null($q) ? Gongo_Locator::get('Gongo_Db_QueryBuilder', $this) : $q ;
+		return $this->_prepareFields($q, $fields, $inner);
+	}
+
 	function setFromTable($query)
 	{
 		if (!isset($query['from'])) {
@@ -143,6 +168,41 @@ class Gongo_Db_Mapper
 		);
 	}
 
+	function _prepareFields($q, $fields, $inner = false) 
+	{
+		if (is_null($fields)) return $q;
+		$join = array();
+		$select = array();
+		foreach ($fields as $k => $v) {
+			if (strpos($v, '.') === false) $v = $this->defaultTableAlias . "." . $v;
+			list($table, $col) = explode('.', $v);
+			if ($table !== $this->defaultTableAlias) {
+				$join[] = $table;
+			}
+			$column = $this->identifier($table) . '.' . $this->identifier($col);
+			if (!is_int($k)) $column .= ' AS ' . $this->identifier($k);
+			$select[] = $column;
+		}
+		$joinMapper = $this->joinMapper();
+		if (is_null($joinMapper)) {
+			$q = $this->join($join, $q, $inner);
+		} else {
+			$q = $joinMapper->join($join, $q, $inner);
+		}
+		$q->select(implode(', ', $select));
+		return $q;
+	}
+	
+	function _prepareQuery($q, $query) 
+	{
+		if (isset($query['fields']) && !empty($query['fields'])) {
+			$this->_prepareFields($q, $query['fields'], false);
+		}
+		if (isset($query['ifields']) && !empty($query['ifields'])) {
+			$this->_prepareFields($q, $query['ifields'], true);
+		}
+	}
+	
 	function _sql($query, $args = null, $boundParams = array())
 	{
 		$sql = $this->replaceTableName($this->queryWriter()->build($query, $this->namedScopes()));
@@ -209,21 +269,26 @@ class Gongo_Db_Mapper
 
 	function identifier($name)
 	{
+		if ($name === '*') return $name;
 		return $this->quote . $name . $this->quote;
 	}
 
-	protected function makeColumnLabel($bean, $eq = false, $ignore = null)
+	protected function makeColumnLabel($bean, $eq = false, $ignore = null, $want = null)
 	{
 		$col = array();
 		$param = array();
+		$var = array();
 		foreach ($bean as $k => $v) {
 			if (is_null($ignore) || !in_array($k, $ignore)) {
 				$id = $this->identifier($k);
 				$col[] = $id . ($eq ? "=:{$k}" : '');
+				$param[':' . $k] = $v;
+				$var[] = ':' . $k;
+			} else if (!is_null($want) && in_array($k, $want)) {
+				$param[':' . $k] = $v;
 			}
-			$param[':' . $k] = $v;
 		}
-		return array($col, $param);
+		return array($col, $param, $var);
 	}
 	
 	function insert($bean, $q = null)
@@ -234,9 +299,10 @@ class Gongo_Db_Mapper
 			$bean->{$this->modifiedDateColumn()} = $current;
 		}
 		$q = is_null($q) ? $this->query() : $q ;
-		list($col, $param) = $this->makeColumnLabel($bean);
-		$val = array_keys($param);
-		$result = $q->insert()->into($this->tableName() . ' (' . implode(',', $col) .')')->values('(' . implode(',', $val) .')')->exec($param);
+		$ignoreKeys = $q->ignoreKeys();
+		$wantKeys = $q->wantKeys();
+		list($col, $param, $var) = $this->makeColumnLabel($bean, false, $ignoreKeys, $wantKeys);
+		$result = $q->insert()->into($this->tableName() . ' (' . implode(',', $col) .')')->values('(' . implode(',', $var) .')')->exec($param);
 		if ($result) {
 			$bean->{$this->primaryKey()} = $this->lastInsertId();
 		}
@@ -255,7 +321,9 @@ class Gongo_Db_Mapper
 		$pk = $this->primaryKey();
 		$ignoreKeys = array($pk);
 		$ignoreKeys = array_merge($ignoreKeys, $q->ignoreKeys());
-		list($set, $param) = $this->makeColumnLabel($bean, true, $ignoreKeys);
+		$wantKeys = array($pk);
+		$wantKeys = array_merge($wantKeys, $q->wantKeys());
+		list($set, $param, $var) = $this->makeColumnLabel($bean, true, $ignoreKeys, $wantKeys);
 		$pkid = $this->identifier($pk);
 		return $q->update($this->tableName())->set(implode(',', $set))->where("{$pkid} = :{$pk}")->rowCount($returnRowCount)->exec($param);
 	}
@@ -275,20 +343,65 @@ class Gongo_Db_Mapper
 			$pk = $this->primaryKey();
 			$q = is_null($q) ? $this->query() : $q ;
 			$pkid = $this->identifier($pk);
-			return $q->delete()->from($this->tableName())->where("{$pkid} = :{$pk}")->rowCount($returnRowCount)->exec(array(":{$pk}" => (int) $id));
+			return $q->delete()->from($this->tableName())->where("{$pkid} = :{$pk}")->rowCount($returnRowCount)->exec(array(":{$pk}" => $id));
 		}
-		list($set, $param) = $this->columnList($bean, true);
 		$q = is_null($q) ? $this->query() : $q ;
+		list($set, $param, $var) = $this->makeColumnLabel($id, true, $q->ignoreKeys(), $q->wantKeys());
 		return $q->delete()->from($this->tableName())->where($set)->rowCount($returnRowCount)->exec($param);
 	}
 
-	function get($id = null, $q = null)
+	function get($id = null, $q = null, $empty = false)
 	{
 		if (!$id) return $this->bean();
 		$pk = $this->primaryKey();
 		$q = is_null($q) ? $this->query() : $q ;
 		$pkid = $this->identifier($pk);
-		return $q->select('*')->from($this->tableName())->where("{$pkid} = :{$pk}")->first(array(":{$pk}" => $id));
+		$bean = $q->select('*')->from($this->tableName())->where("{$pkid} = :{$pk}")->first(array(":{$pk}" => $id));
+		if (!$empty) return $bean;
+		return $bean ? $bean : $this->bean() ;
+	}
+
+	function getRelationMapper($key) 
+	{
+		if (!isset($this->relation[$key])) return null;
+		$mapper = $this->relation[$key];
+		if (!is_string($mapper)) return $mapper;
+		$this->relation[$key] = Gongo_Locator::get($mapper);
+		return $this->relation[$key];
+	}
+
+	function foreignKey($key)
+	{
+		return $key . '_id';
+	}
+
+	function join($keys, $q = null, $inner = false) 
+	{
+		$q = is_null($q) ? $this->query() : $q ;
+		$fromTable = $this->identifier($this->table());
+		$fromAlias = $this->identifier($this->defaultTableAlias);
+		$q->from($fromTable . " AS {$fromAlias}");
+		foreach ($keys as $key => $obj) {
+			if (is_int($key)) {
+				$relMapper = $this->getRelationMapper($obj);
+				$key = $obj;
+			} else {
+				if (is_string($obj)) {
+					$obj = Gongo_Locator::get($obj);
+				}
+				$relMapper = $obj;
+			}
+			$joinTable = $this->identifier($relMapper->table());
+			$joinAlias = $this->identifier($key);
+			$pk = $this->identifier($relMapper->primaryKey());
+			$fkey = $this->identifier($this->foreignKey($key));
+			if ($inner) {
+				$q->innerJoin("{$joinTable} AS {$joinAlias} ON {$fromAlias}.{$fkey} = {$joinAlias}.{$pk}");
+			} else {
+				$q->join("{$joinTable} AS {$joinAlias} ON {$fromAlias}.{$fkey} = {$joinAlias}.{$pk}");
+			}
+		}
+		return $q;
 	}
 
 	function beginTransaction()

@@ -15,6 +15,12 @@ class Gongo_Db
 		self::$_defaultLog = is_null($log) ? Gongo_Locator::get('Gongo_Log', 'sqllog.txt') : $log ;
 	}
 
+	static function like($text, $e = null)
+	{
+		if (is_null($e)) return strtr($text, array('%' => '\%', '_' => '\_'));
+		return strtr($text, array($e => $e . $e, '%' => $e . '%', '_' => $e . '_'));
+	}
+
 	function __construct($db = null, $log = null)
 	{
 		$this->_log = is_null($log) ? self::$_defaultLog : $log ;
