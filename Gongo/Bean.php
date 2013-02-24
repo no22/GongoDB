@@ -49,26 +49,35 @@ class Gongo_Bean implements IteratorAggregate
 		}
 		return $bean1;
 	}
-	
-	static function cast($bean, $data)
+
+	static function cast($bean, $data, $strict = true, $unset = false)
 	{
 		$beanData = $bean->_();
 		if (empty($beanData)) return self::merge($bean, $data);
-		$data = $data instanceof Gongo_Bean ? $data->_() : (array) $data ;
-		foreach ($bean as $k => $v) {
-			if (array_key_exists($k, $data)) {
-				$value = $data[$k];
-				if (is_int($v)) {
-					$bean->{$k} = (int) $value;
-				} else if (is_float($v)) {
-					$bean->{$k} = (float) $value;
-				} else if (is_string($v)) {
-					$bean->{$k} = (string) $value;
-				} else if (is_bool($v)) {
-					$bean->{$k} = (bool) $value;
+		$srcData = $data instanceof Gongo_Bean ? $data->_() : (array) $data ;
+		foreach ($srcData as $k => $v) {
+			if (array_key_exists($k, $beanData)) {
+				$type = $beanData[$k];
+				if (is_int($type)) {
+					$bean->{$k} = (int) $v;
+				} else if (is_float($type)) {
+					$bean->{$k} = (float) $v;
+				} else if (is_string($type)) {
+					$bean->{$k} = (string) $v;
+				} else if (is_bool($type)) {
+					$bean->{$k} = (bool) $v;
 				} else {
-					$bean->{$k} = $value;
+					$bean->{$k} = $v;
 				}
+			} else if (!$strict) {
+				$bean->{$k} = $v;
+			}
+		}
+		if ($unset) {
+			$beanKey = array_keys($beanData);
+			$srcKey = array_keys($srcData);
+			foreach (array_diff($beanKey, $srcKey) as $k) {
+				unset($bean->{$k});
 			}
 		}
 		return $bean;
