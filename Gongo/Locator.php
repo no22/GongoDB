@@ -5,6 +5,8 @@ class Gongo_Locator
 	static $serviceLocator = null;
 	protected $serviceBuilder = null;
 	protected $config = null;
+	protected $refParams = array();
+	protected $refClasses = array();
 	
 	static function setConfig($cfg = null)
 	{
@@ -101,13 +103,17 @@ class Gongo_Locator
 	{
 		return self::build($this, $className, $args);
 	}
-	
+
 	protected function newObj($sClass, $args = array())
 	{
 		if (!$sClass) return null;
 		if (count($args) === 0) return new $sClass;
-		$refMethod = new ReflectionMethod($sClass,  '__construct');
-		$params = $refMethod->getParameters();
+		if (isset($this->refParams[$sClass])) {
+			$params = $this->refParams[$sClass];
+		} else {
+			$refMethod = new ReflectionMethod($sClass,  '__construct');
+			$params = $this->refParams[$sClass] = $refMethod->getParameters();
+		}
 		$re_args = array();
 		foreach($params as $key => $param) {
 			if (isset($args[$key])) {
@@ -118,7 +124,7 @@ class Gongo_Locator
 				}
 			}
 		}
-		$refClass = new ReflectionClass($sClass);
+		$refClass = isset($this->refClasses[$sClass]) ? $this->refClasses[$sClass] : $this->refClasses[$sClass] = new ReflectionClass($sClass) ;
 		return $refClass->newInstanceArgs((array) $re_args);
 	}
 }
