@@ -51,3 +51,64 @@ class Gongo
 		return Gongo_Locator::make('Gongo_' . $name, $args);
 	}
 }
+
+if (!defined('PHP_VERSION_ID')) {
+	$version = explode('.', PHP_VERSION);
+	define('PHP_VERSION_ID', ($version[0] * 10000 + $version[1] * 100 + $version[2]));
+}
+
+if (!function_exists('quote')) {
+    function quote($obj) { return Gongo_Fn::quote($obj); }
+}
+
+if (!function_exists('bind')) {
+    function bind($callback) { 
+		$args = func_get_args();
+		array_shift($args);
+		return Gongo_Fn_Partial::apply($callback, $args);
+	}
+}
+
+if (!function_exists('call')) {
+	function call($callback)
+	{
+		$args = func_get_args();
+		array_shift($args);
+		return call_user_func_array($callback, $args);
+	}
+}
+
+if (!function_exists('apply')) {
+	function apply($callback, $args)
+	{
+		return call_user_func_array($callback, $args);
+	}
+}
+
+if (!function_exists('once')) {
+	function once($callback)
+	{
+		return Gongo_Fn::once($callback);
+	}
+}
+
+if (!function_exists('before')) {
+	function before($callback, $before)
+	{
+		return Gongo_Fn::before($callback, $before);
+	}
+}
+
+if (!function_exists('after')) {
+	function after($callback, $after)
+	{
+		return Gongo_Fn::after($callback, $after);
+	}
+}
+
+if (!function_exists('around')) {
+	function around($callback, $around)
+	{
+		return Gongo_Fn::around($callback, $around);
+	}
+}
