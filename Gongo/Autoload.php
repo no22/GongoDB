@@ -1,8 +1,13 @@
 <?php
+
+if (!defined('GONGO_ROOT')) {
+	define('GONGO_ROOT', dirname(dirname(__FILE__)));
+}
+
 class Gongo_Autoload
 {
 	static $gongoPath = null;
-	static $limit = false;
+	static $limit = true;
 
 	public static function autoload($sClass)
 	{

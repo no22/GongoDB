@@ -176,7 +176,7 @@ class Gongo_Db_Mapper
 		foreach ($fields as $k => $v) {
 			if (strpos($v, '.') === false) $v = $this->defaultTableAlias . "." . $v;
 			list($table, $col) = explode('.', $v);
-			if ($table !== $this->defaultTableAlias) {
+			if ($table !== $this->defaultTableAlias && !in_array($table, $join)) {
 				$join[] = $table;
 			}
 			$column = $this->identifier($table) . '.' . $this->identifier($col);
@@ -339,7 +339,7 @@ class Gongo_Db_Mapper
 
 	function delete($id, $q = null, $returnRowCount = false)
 	{
-		if (is_int($id) || is_numeric($id)) {
+		if (is_int($id) || is_numeric($id) || is_string($id)) {
 			$pk = $this->primaryKey();
 			$q = is_null($q) ? $this->query() : $q ;
 			$pkid = $this->identifier($pk);

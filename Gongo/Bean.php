@@ -1,5 +1,5 @@
 <?php
-class Gongo_Bean implements IteratorAggregate
+class Gongo_Bean extends Gongo_Bean_Base implements IteratorAggregate
 {
 	protected $_data;
 	
@@ -90,6 +90,7 @@ class Gongo_Bean implements IteratorAggregate
 	
 	public function __get($key)
 	{
+		if ($key === '_') return parent::__get($key);
 		return isset($this->_data[$key]) ? $this->_data[$key] : null;
 	}
 
