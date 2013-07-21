@@ -99,4 +99,17 @@ class Gongo_Container
 			$this->components[$sName] = Gongo_Fn::after($this->components[$sName], $callback);
 		}
 	}
+
+	public function register($sName, $callback)
+	{
+		$this->components[$sName] = $callback;
+	}
+	
+	public function defaultValue($options, $sName, $mValue)
+	{
+		if (!isset($options[$sName])) {
+			$options[$sName] = $mValue;
+		}
+		return $options;
+	}
 }

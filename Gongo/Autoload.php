@@ -16,7 +16,7 @@ class Gongo_Autoload
 			self::$gongoPath = dirname(dirname(__FILE__)) . DIRECTORY_SEPARATOR;
 		}
 		$sPath = self::$gongoPath . strtr($sClass, array('_' => DIRECTORY_SEPARATOR)).'.php';
-		is_file($sPath) and include($sPath);
+		is_file($sPath) and require($sPath);
 	}
 
 	public static function register($limit = true)
@@ -35,7 +35,7 @@ class Gongo_Autoload
 	}
 }
 
-Gongo_Autoload::register();
+Gongo_Autoload::register(false);
 
 class Gongo
 {

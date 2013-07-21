@@ -14,6 +14,8 @@ class Gongo_Db_Mapper
 	public $relation = array();
 	protected $defaultTableAlias = 't';
 	protected $joinMapper = null;
+	protected $currentArgs = array();
+	protected $argsCount = array();
 	
 	function __construct($db = null, $table = null, $pk = null, $namedScopes = null, $queryWriter = null)
 	{
@@ -23,6 +25,7 @@ class Gongo_Db_Mapper
 		if (!is_null($namedScopes)) $this->namedScopes($namedScopes);
 		$queryWriter = is_null($queryWriter) ? Gongo_Locator::get('Gongo_Db_QueryWriter') : $queryWriter ;
 		$this->queryWriter($queryWriter);
+		$this->queryWriter()->defaultTable($this->tableName());
 	}
 	
 	function db($value = null)
@@ -168,6 +171,39 @@ class Gongo_Db_Mapper
 		);
 	}
 
+	function _replaceParams($m)
+	{
+		$key = $m[1];
+		if (!isset($this->argsCount[$key])) {
+			$this->argsCount[$key] = 1;
+			return $m[0];
+		}
+		$c = $this->argsCount[$key]++;
+		$arg = $this->currentArgs[$key];
+		$name = $key . '___' . $c;
+		$this->currentArgs[$name] = $arg;
+		return $name;
+	}
+
+	function _replaceRepeatedParams($m)
+	{
+		$sql = preg_replace_callback(
+			'/(:\w+)/', array($this, '_replaceParams'), $m[1]
+		);
+		return $sql . $m[2];
+	}
+
+	function replaceRepeatedParams($sql, $args)
+	{
+		$this->currentArgs = $args;
+		$this->argsCount = array();
+		$sql = preg_replace_callback(
+			'/([^\'"]*)(\'(?:[^\'\\\\]|\\\\\')*?\'|"(?:[^"\\\\]|\\\\")*?"|$)/',
+			array($this, '_replaceRepeatedParams'), $sql
+		);
+		return array($sql, $this->currentArgs);
+	}
+
 	function _prepareFields($q, $fields, $inner = false) 
 	{
 		if (is_null($fields)) return $q;
@@ -203,11 +239,15 @@ class Gongo_Db_Mapper
 		}
 	}
 	
-	function _sql($query, $args = null, $boundParams = array())
+	function _sql($query, $args = null, $boundParams = array(), $select = false)
 	{
-		$sql = $this->replaceTableName($this->queryWriter()->build($query, $this->namedScopes()));
+		if ($select) {
+			$sql = $this->replaceTableName($this->queryWriter()->buildSelectQuery($query, $this->namedScopes()));
+		} else {
+			$sql = $this->replaceTableName($this->queryWriter()->build($query, $this->namedScopes()));
+		}
 		$args = $this->queryWriter()->params($args, $query, $boundParams);
-		return array($sql, $args);
+		return $this->replaceRepeatedParams($sql, $args);
 	}
 
 	function _all($query, $args = null, $boundParams = array())
@@ -221,8 +261,9 @@ class Gongo_Db_Mapper
 	{
 		$query = $this->setSelectColumn($query);
 		$query = $this->setFromTable($query);
-		$sql = $this->replaceTableName($this->queryWriter()->buildSelectQuery($query, $this->namedScopes()));
-		$args = $this->queryWriter()->params($args, $query, $boundParams);
+//		$sql = $this->replaceTableName($this->queryWriter()->buildSelectQuery($query, $this->namedScopes()));
+//		$args = $this->queryWriter()->params($args, $query, $boundParams);
+		list($sql, $args) = $this->_sql($query, $args, $boundParams, true);
 		return $this->db()->iter($sql, $args);
 	}
 	
@@ -230,8 +271,9 @@ class Gongo_Db_Mapper
 	{
 		$query = $this->setSelectColumn($query);
 		$query = $this->setFromTable($query);
-		$sql = $this->replaceTableName($this->queryWriter()->buildSelectQuery($query, $this->namedScopes()));
-		$args = $this->queryWriter()->params($args, $query, $boundParams);
+//		$sql = $this->replaceTableName($this->queryWriter()->buildSelectQuery($query, $this->namedScopes()));
+//		$args = $this->queryWriter()->params($args, $query, $boundParams);
+		list($sql, $args) = $this->_sql($query, $args, $boundParams, true);
 		return $this->db()->row($sql, $args);
 	}
 
@@ -249,16 +291,18 @@ class Gongo_Db_Mapper
 	{
 		$query = $this->setFromTable($query);
 		$query['select'] = "count(*) AS count";
-		$sql = $this->replaceTableName($this->queryWriter()->buildSelectQuery($query, $this->namedScopes()));
-		$args = $this->queryWriter()->params($args, $query, $boundParams);
+//		$sql = $this->replaceTableName($this->queryWriter()->buildSelectQuery($query, $this->namedScopes()));
+//		$args = $this->queryWriter()->params($args, $query, $boundParams);
+		list($sql, $args) = $this->_sql($query, $args, $boundParams, true);
 		$bean = $this->db()->first($sql, $args);
 		return $bean ? (int) $bean->count : null ;
 	}
 
 	function _exec($query, $args = null, $returnRowCount = false, $boundParams = array())
 	{
-		$sql = $this->replaceTableName($this->queryWriter()->build($query, $this->namedScopes()));
-		$args = $this->queryWriter()->params($args, $query, $boundParams);
+//		$sql = $this->replaceTableName($this->queryWriter()->build($query, $this->namedScopes()));
+//		$args = $this->queryWriter()->params($args, $query, $boundParams);
+		list($sql, $args) = $this->_sql($query, $args, $boundParams, false);
 		return $this->db()->exec($sql, $args, $returnRowCount);
 	}
 	
@@ -366,7 +410,7 @@ class Gongo_Db_Mapper
 		if (!isset($this->relation[$key])) return null;
 		$mapper = $this->relation[$key];
 		if (!is_string($mapper)) return $mapper;
-		$this->relation[$key] = Gongo_Locator::get($mapper);
+		$this->relation[$key] = Gongo_Locator::get($mapper, $this->db());
 		return $this->relation[$key];
 	}
 
@@ -387,7 +431,7 @@ class Gongo_Db_Mapper
 				$key = $obj;
 			} else {
 				if (is_string($obj)) {
-					$obj = Gongo_Locator::get($obj);
+					$obj = Gongo_Locator::get($obj, $this->db());
 				}
 				$relMapper = $obj;
 			}

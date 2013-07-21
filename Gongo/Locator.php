@@ -35,6 +35,33 @@ class Gongo_Locator
 		return self::build($serviceLocator, $className, $args);
 	}
 
+	static public function _make($className, $args)
+	{
+		return Gongo_Fn::papply('Gongo_Locator::make', $className, $args);
+	}
+
+	static public function _get()
+	{
+		$args = func_get_args();
+		$className = array_shift($args);
+		return self::_make($className, $args);
+	}
+
+	static public function makeLazy($className, $args, $after = null, $singleton = false)
+	{
+		$callback = Gongo_Fn::papply('Gongo_Locator::make', $className, $args);
+		if (!is_null($after)) $callback = Gongo_Fn::after($callback, $after);
+		if ($singleton) $callback = Gongo_Fn::once($callback);
+		return self::get('Gongo_Proxy_Lazy', $callback);
+	}
+
+	static public function getLazy()
+	{
+		$args = func_get_args();
+		$className = array_shift($args);
+		return self::makeLazy($className, $args);
+	}
+
 	static public function build($serviceLocator, $className, $args)
 	{
 		$serviceBuilder = $serviceLocator->builder();

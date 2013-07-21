@@ -3,6 +3,7 @@ class Gongo_Db_QueryWriter
 {
 	protected $defaultBuilder = 'Gongo_Db_GoQL';
 	protected $namedScopes = array();
+	protected $defaultTable = '';
 
 	protected $operator = array(
 		'$or' => 'OR',
@@ -21,9 +22,9 @@ class Gongo_Db_QueryWriter
 		'from' => array('FROM', 'buildClause', 1),
 		'values' => array('VALUES', 'buildClause', 1),
 		'set' => array('SET', 'buildClause', 3),
-		'join' => array('LEFT JOIN', 'buildClause', 2),
-		'innerjoin' => array('INNER JOIN', 'buildClause', 2),
-		'rawjoin' => array('', 'buildClause', 2),
+		'join' => array('LEFT JOIN', 'buildJoin', 2),
+		'innerjoin' => array('INNER JOIN', 'buildJoin', 2),
+		'rawjoin' => array('', 'buildJoin', 2),
 		'where' => array('WHERE', 'buildWhere', 1),
 		'groupby' => array('GROUP BY', 'buildClause', 1),
 		'having' => array('HAVING', 'buildWhere', 1),
@@ -39,6 +40,13 @@ class Gongo_Db_QueryWriter
 		return $this;
 	}
 	
+	function defaultTable($value = null)
+	{
+		if (is_null($value)) return $this->defaultTable;
+		$this->defaultTable = $value;
+		return $this;
+	}
+
 	function params($args, $query = null, $boundParams = array())
 	{
 		$query = is_null($query) ? array() : $query ;
@@ -89,6 +97,9 @@ class Gongo_Db_QueryWriter
 		if (!isset($query['select'])) {
 			$query['select'] = '*';
 		}
+		if (!isset($query['from']) && $this->defaultTable() != '') {
+			$query['from'] = $this->defaultTable();
+		}
 		return $this->build($query);
 	}
 
@@ -110,12 +121,12 @@ class Gongo_Db_QueryWriter
 	{
 		if (is_array($query)) {
 			if (isset($query[0]) && is_string($query[0])) {
-				return $this->build($this->subQuery($query));
+				return $this->buildSelectQuery($this->subQuery($query));
 			} else {
-				return $this->build($query);
+				return $this->buildSelectQuery($query);
 			}
 		} else if ($query instanceof Gongo_Db_GoQL) {
-			return $this->build($query->getQuery());
+			return $this->buildSelectQuery($query->getQuery());
 		}
 	}
 
@@ -133,6 +144,41 @@ class Gongo_Db_QueryWriter
 			$newPhrase[] = $b . $p . $a;
 		}
 		return implode($delim, $newPhrase) ;
+	}
+
+	function buildJoin($phrase, $delim = '  ')
+	{
+		$phrase = is_string($phrase) ? array_map('trim', explode(',', $phrase)) : $phrase ;
+		$newPhrase = array();
+		foreach ($phrase as $k => $v) {
+			$p = '';
+			if (is_int($k)) {
+				if (is_string($v)) $p = $v;
+			} else {
+				if (stripos($k, ' AS ') !== false) {
+					$p = $k . ' ON ' . $this->buildWhere($v);
+				} else if (is_array($v)) {
+					if ($delim === '  ') {
+						list($t, $j, $o) = $v;
+					} else {
+						list($j, $o) = $v;
+					}
+					if (is_string($j)) {
+						$join = $j;
+					} else if (is_array($j)) {
+						$join = '('. $this->buildSubQuery($j) . ')';
+					}
+					if (is_string($o)) {
+						$on = $o;
+					} else if (is_array($o)) {
+						$on = $this->buildWhere($o);
+					}
+					$p = ($delim !== '  ' ? '' : $t . ' ') . $join . ' AS ' . $k . ' ON ' . $on ; 
+				}
+			}
+			$newPhrase[] = $p;
+		}
+		return implode($delim === '  ' ? ' ' : $delim, $newPhrase) ;
 	}
 	
 	function buildWhere($cond, $mode = 'AND')
