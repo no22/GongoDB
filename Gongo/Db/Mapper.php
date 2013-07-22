@@ -176,10 +176,18 @@ class Gongo_Db_Mapper
 		$key = $m[1];
 		if (!isset($this->argsCount[$key])) {
 			$this->argsCount[$key] = 1;
+			if (isset($this->currentArgs[$key . '#'])) {
+				$this->currentArgs[$key] = $this->currentArgs[$key . '#'][0];
+			}
 			return $m[0];
 		}
 		$c = $this->argsCount[$key]++;
-		$arg = $this->currentArgs[$key];
+		$arg = null;
+		if (isset($this->currentArgs[$key . '#'])) {
+			$arg = $this->currentArgs[$key . '#'][$c];
+		} else if (isset($this->currentArgs[$key])) {
+			$arg = $this->currentArgs[$key];
+		}
 		$name = $key . '___' . $c;
 		$this->currentArgs[$name] = $arg;
 		return $name;
@@ -201,6 +209,9 @@ class Gongo_Db_Mapper
 			'/([^\'"]*)(\'(?:[^\'\\\\]|\\\\\')*?\'|"(?:[^"\\\\]|\\\\")*?"|$)/',
 			array($this, '_replaceRepeatedParams'), $sql
 		);
+		foreach ($this->currentArgs as $k => $v) {
+			if (strpos($k, '#', strlen($k) - 1) !== false) unset($this->currentArgs[$k]);
+		}
 		return array($sql, $this->currentArgs);
 	}
 
@@ -261,8 +272,6 @@ class Gongo_Db_Mapper
 	{
 		$query = $this->setSelectColumn($query);
 		$query = $this->setFromTable($query);
-//		$sql = $this->replaceTableName($this->queryWriter()->buildSelectQuery($query, $this->namedScopes()));
-//		$args = $this->queryWriter()->params($args, $query, $boundParams);
 		list($sql, $args) = $this->_sql($query, $args, $boundParams, true);
 		return $this->db()->iter($sql, $args);
 	}
@@ -271,8 +280,6 @@ class Gongo_Db_Mapper
 	{
 		$query = $this->setSelectColumn($query);
 		$query = $this->setFromTable($query);
-//		$sql = $this->replaceTableName($this->queryWriter()->buildSelectQuery($query, $this->namedScopes()));
-//		$args = $this->queryWriter()->params($args, $query, $boundParams);
 		list($sql, $args) = $this->_sql($query, $args, $boundParams, true);
 		return $this->db()->row($sql, $args);
 	}
@@ -291,8 +298,6 @@ class Gongo_Db_Mapper
 	{
 		$query = $this->setFromTable($query);
 		$query['select'] = "count(*) AS count";
-//		$sql = $this->replaceTableName($this->queryWriter()->buildSelectQuery($query, $this->namedScopes()));
-//		$args = $this->queryWriter()->params($args, $query, $boundParams);
 		list($sql, $args) = $this->_sql($query, $args, $boundParams, true);
 		$bean = $this->db()->first($sql, $args);
 		return $bean ? (int) $bean->count : null ;
@@ -300,8 +305,6 @@ class Gongo_Db_Mapper
 
 	function _exec($query, $args = null, $returnRowCount = false, $boundParams = array())
 	{
-//		$sql = $this->replaceTableName($this->queryWriter()->build($query, $this->namedScopes()));
-//		$args = $this->queryWriter()->params($args, $query, $boundParams);
 		list($sql, $args) = $this->_sql($query, $args, $boundParams, false);
 		return $this->db()->exec($sql, $args, $returnRowCount);
 	}

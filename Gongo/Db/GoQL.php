@@ -182,6 +182,18 @@ class Gongo_Db_GoQL
 				$arr[$params[$i]] = $arg;
 			}
 		}
+		foreach ($arr as $k => $v) {
+			$len = strlen($k);
+			if (strpos($k, '#', $len-1) !== false) {
+				if (isset($this->_arguments[$k])) {
+					$newarr = $this->_arguments[$k];
+					$newarr[] = $v;
+					$arr[$k] = $newarr;
+				} else {
+					$arr[$k] = array($v);
+				}
+			}
+		}
 		$this->_arguments = array_merge($this->_arguments, $arr);
 		return $this;
 	}
