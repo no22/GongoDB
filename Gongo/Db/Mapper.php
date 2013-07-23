@@ -25,13 +25,23 @@ class Gongo_Db_Mapper
 		if (!is_null($namedScopes)) $this->namedScopes($namedScopes);
 		$queryWriter = is_null($queryWriter) ? Gongo_Locator::get('Gongo_Db_QueryWriter') : $queryWriter ;
 		$this->queryWriter($queryWriter);
-		$this->queryWriter()->defaultTable($this->tableName());
+		$this->setQueryWriterDefaultTableName();
+	}
+
+	function setQueryWriterDefaultTableName()
+	{
+		$db = $this->db();
+		$table = $this->table();
+		if (!is_null($db) && !$table) {
+			$this->queryWriter()->defaultTable($table);
+		}
 	}
 	
 	function db($value = null)
 	{
 		if (is_null($value)) return $this->db;
 		$this->db = $value;
+		$this->setQueryWriterDefaultTableName();
 		return $this;
 	}
 	
@@ -39,6 +49,7 @@ class Gongo_Db_Mapper
 	{
 		if (is_null($value)) return $this->table;
 		$this->table = $value;
+		$this->setQueryWriterDefaultTableName();
 		return $this;
 	}
 	
