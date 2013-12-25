@@ -16,6 +16,7 @@ class Gongo_Db_Mapper
 	protected $joinMapper = null;
 	protected $currentArgs = array();
 	protected $argsCount = array();
+	protected $strict = null;
 	
 	function __construct($db = null, $table = null, $pk = null, $namedScopes = null, $queryWriter = null)
 	{
@@ -131,6 +132,13 @@ class Gongo_Db_Mapper
 		$this->joinMapper = $value;
 		return $this;
 	}
+
+	function strict($value = null)
+	{
+		if (is_null($value)) return $this->strict;
+		$this->strict = $value;
+		return $this;
+	}
 	
 	function finder($fields = null, $inner = false) { return $this->query($fields, $inner); }
 	function q($fields = null, $inner = false) { return $this->query($fields, $inner); }
@@ -232,6 +240,13 @@ class Gongo_Db_Mapper
 		$join = array();
 		$select = array();
 		foreach ($fields as $k => $v) {
+			if (is_int($k)) {
+				$pos = stripos($v, ' AS ');
+				if ($pos !== false) {
+					$k = trim(substr($v, $pos+4));
+					$v = trim(substr($v, 0, $pos));
+				}
+			}
 			if (strpos($v, '.') === false) $v = $this->defaultTableAlias . "." . $v;
 			list($table, $col) = explode('.', $v);
 			if ($table !== $this->defaultTableAlias && !in_array($table, $join)) {
@@ -272,32 +287,34 @@ class Gongo_Db_Mapper
 		return $this->replaceRepeatedParams($sql, $args);
 	}
 
-	function _all($query, $args = null, $boundParams = array())
+	function _all($query, $args = null, $boundParams = array(), $strict = null)
 	{
 		$entityClass = isset($query['entityclass']) ? $query['entityclass'] : null ;
 		$prototype = $this->bean(array(), $entityClass);
-		return $this->_iter($query, $args, $boundParams)->map(array($prototype, '___'));
+		return $this->_iter($query, $args, $boundParams, $strict)->map(array($prototype, '___'));
 	}
 	
-	function _iter($query, $args = null, $boundParams = array())
+	function _iter($query, $args = null, $boundParams = array(), $strict = null)
 	{
+		$strict = is_null($strict) ? $this->strict() : $strict ;
 		$query = $this->setSelectColumn($query);
 		$query = $this->setFromTable($query);
 		list($sql, $args) = $this->_sql($query, $args, $boundParams, true);
-		return $this->db()->iter($sql, $args);
+		return $this->db()->iter($sql, $args, $strict);
 	}
 	
-	function _row($query, $args = null, $boundParams = array())
+	function _row($query, $args = null, $boundParams = array(), $strict = null)
 	{
+		$strict = is_null($strict) ? $this->strict() : $strict ;
 		$query = $this->setSelectColumn($query);
 		$query = $this->setFromTable($query);
 		list($sql, $args) = $this->_sql($query, $args, $boundParams, true);
-		return $this->db()->row($sql, $args);
+		return $this->db()->row($sql, $args, $strict);
 	}
 
-	function _first($query, $args = null, $boundParams = array())
+	function _first($query, $args = null, $boundParams = array(), $strict = null)
 	{
-		$result = $this->_row($query, $args, $boundParams);
+		$result = $this->_row($query, $args, $boundParams, $strict);
 		if ($result) {
 			$entityClass = isset($query['entityclass']) ? $query['entityclass'] : null ;
 			return $this->bean($result, $entityClass);
@@ -305,19 +322,21 @@ class Gongo_Db_Mapper
 		return null;
 	}
 	
-	function _count($query, $args = null, $boundParams = array())
+	function _count($query, $args = null, $boundParams = array(), $strict = null)
 	{
+		$strict = is_null($strict) ? $this->strict() : $strict ;
 		$query = $this->setFromTable($query);
 		$query['select'] = "count(*) AS count";
 		list($sql, $args) = $this->_sql($query, $args, $boundParams, true);
-		$bean = $this->db()->first($sql, $args);
+		$bean = $this->db()->first($sql, $args, $strict);
 		return $bean ? (int) $bean->count : null ;
 	}
 
-	function _exec($query, $args = null, $returnRowCount = false, $boundParams = array())
+	function _exec($query, $args = null, $returnRowCount = false, $boundParams = array(), $strict = null)
 	{
+		$strict = is_null($strict) ? $this->strict() : $strict ;
 		list($sql, $args) = $this->_sql($query, $args, $boundParams, false);
-		return $this->db()->exec($sql, $args, $returnRowCount);
+		return $this->db()->exec($sql, $args, $returnRowCount, $strict);
 	}
 	
 	function lastInsertId()
@@ -328,7 +347,8 @@ class Gongo_Db_Mapper
 	function identifier($name)
 	{
 		if ($name === '*') return $name;
-		return $this->quote . $name . $this->quote;
+		$q = $this->quote;
+		return $q . str_replace($q, $q.$q, $name) . $q;
 	}
 
 	protected function makeColumnLabel($bean, $eq = false, $ignore = null, $want = null)

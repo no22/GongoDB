@@ -5,8 +5,8 @@ class Gongo_Bean_ArrayWrapper extends Gongo_Bean
 	{
 		$this->_data = &$data;
 	}
-	
-	public function &_()
+
+	public function &_($ary = null)
 	{
 		return $this->_data;
 	}

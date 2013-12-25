@@ -3,11 +3,13 @@ class Gongo_Locator
 {
 	static public $defaultConfig = null;
 	static $serviceLocator = null;
+	static $defaultBuilder = 'Gongo_Builder';
+	static $environmentVariable = 'GONGO_BUILDER';
 	protected $serviceBuilder = null;
 	protected $config = null;
 	protected $refParams = array();
 	protected $refClasses = array();
-	
+
 	static function setConfig($cfg = null)
 	{
 		self::$defaultConfig = is_null($cfg) ? Gongo_Config::get() : $cfg ;
@@ -16,7 +18,7 @@ class Gongo_Locator
 	static public function getInstance()
 	{
 		if (is_null(self::$serviceLocator)) {
-			self::$serviceLocator = new self; 
+			self::$serviceLocator = new self;
 		}
 		return self::$serviceLocator;
 	}
@@ -89,26 +91,29 @@ class Gongo_Locator
 		$this->serviceBuilder = $builder;
 		return $this;
 	}
-	
+
 	public function injectBuilder($builderClass, $args = array())
 	{
 		$this->builder($this->newObj($builderClass, $args));
 	}
-	
+
 	public function config($config = null)
 	{
 		if (is_null($config)) return $this->config;
 		$this->config = $config;
 		return $this;
 	}
-	
+
 	public function __construct($builder = null)
 	{
 		if (!is_null(self::$defaultConfig)) {
 			$this->config(self::$defaultConfig);
 		}
 		if (is_null($builder)) {
-			$builderClass = 'Gongo_Builder';
+			$environmentVariable = self::$environmentVariable;
+			$builderClass = isset($_SERVER[$environmentVariable]) ? $_SERVER[$environmentVariable] : false ;
+			if (!$builderClass) $builderClass = getenv($environmentVariable);
+			if (!$builderClass) $builderClass = self::$defaultBuilder;
 			$config = $this->config();
 			if (!is_null($config)) {
 				$builderClass = $config->Locator->Gongo_Builder ? $config->Locator->Gongo_Builder : $builderClass ;
@@ -125,7 +130,7 @@ class Gongo_Locator
 		$className = array_shift($args);
 		return self::build($this, $className, $args);
 	}
-	
+
 	public function makeObj($className, $args)
 	{
 		return self::build($this, $className, $args);

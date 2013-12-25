@@ -9,6 +9,8 @@ class Gongo_Db
 	protected $_classPrefix = 'Mapper_';
 	protected $_tablePrefix = '';
 	protected $_entityClass = 'Gongo_Bean';
+	protected $_iteratorClass = 'Gongo_Db_Iter';
+	protected $_strict = false;
 	
 	static function setLog($log = null)
 	{
@@ -97,12 +99,27 @@ class Gongo_Db
 		$this->_entityClass = $value;
 		return $this;
 	}
-	
-	function iter($sql, $params = null)
+
+	function iteratorClass($value = null)
 	{
+		if (is_null($value)) return $this->_iteratorClass;
+		$this->_iteratorClass = $value;
+		return $this;
+	}
+
+	function strict($value = null)
+	{
+		if (is_null($value)) return $this->_strict;
+		$this->_strict = $value;
+		return $this;
+	}
+	
+	function iter($sql, $params = null, $strict = null)
+	{
+		$strict = is_null($strict) ? $this->strict() : $strict ;
 		list($sql, $params) = $this->prepareSql($sql, $params);
 		$this->log($sql, $params);
-		return Sloth::iter(Gongo_Locator::get('Gongo_Db_Iter', $this->pdo(), $sql, $params));
+		return Sloth::iter(Gongo_Locator::get($this->iteratorClass(), $this->pdo(), $sql, $params, PDO::FETCH_ASSOC, $strict));
 	}
 
 	function bean($ary = array())
@@ -110,42 +127,61 @@ class Gongo_Db
 		return Gongo_Locator::get($this->entityClass(), $ary);
 	}
 
-	function all($sql, $params = null)
+	function all($sql, $params = null, $strict = null)
 	{
-		return $this->iter($sql, $params)->map(array($this, 'bean'));
+		return $this->iter($sql, $params, $strict)->map(array($this, 'bean'));
 	}
 	
-	function row($sql, $params = null)
+	function row($sql, $params = null, $strict = null)
 	{
 		list($sql, $params) = $this->prepareSql($sql, $params);
 		$this->log($sql, $params);
 		$st = $this->pdo()->prepare($sql);
-		$result = $st->execute($params);
+		$result = $this->_execute($st, $params, $strict);
 		if ($result) {
 			$row = $st->fetch(PDO::FETCH_ASSOC);
 			return $row;
 		}
 	}
 
-	function first($sql, $params = null)
+	function first($sql, $params = null, $strict = null)
 	{
-		$result = $this->row($sql, $params);
+		$result = $this->row($sql, $params, $strict);
 		if ($result) {
 			return $this->bean($result);
 		}
 		return null;
 	}
 
-	function exec($sql, $params = null, $returnRowCount = false)
+	function exec($sql, $params = null, $returnRowCount = false, $strict = null)
 	{
 		list($sql, $params) = $this->prepareSql($sql, $params);
 		$this->log($sql, $params);
 		$st = $this->pdo()->prepare($sql);
-		$result = $st->execute($params);
+		$result = $this->_execute($st, $params, $strict);
 		if ($result && $returnRowCount) {
 			return $st->rowCount();
 		}
 		return $result;
+	}
+
+	function _bindType($k, $v)
+	{
+		if (is_int($v)) return PDO::PARAM_INT;
+		if (is_bool($v)) return PDO::PARAM_BOOL;
+		if (is_null($v)) return PDO::PARAM_NULL;
+		return PDO::PARAM_STR;
+	}
+
+	function _execute($st, $params, $strict = null)
+	{
+		$strict = is_null($strict) ? $this->strict() : $strict ;
+		if (!$strict) return $st->execute($params);
+		foreach ($params as $k => $v) {
+			$k = is_int($k) ? $k+1 : $k ;
+			$st->bindValue($k, $v, $this->_bindType($k, $v));
+		}
+		return $st->execute();
 	}
 
 	function beginTransaction()

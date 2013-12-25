@@ -30,6 +30,7 @@ class Gongo_Db_GoQL
 		'entityClass' => array('entityclass', '___setQuery'),
 		'fields' => array('fields', '___addQuery'),
 		'ifields' => array('ifields', '___addQuery'),
+		'strict' => array('strict', '___setQuery'),
 	);
 	protected $_clauseMap = array();
 	protected $_defaultMethod = 'all';

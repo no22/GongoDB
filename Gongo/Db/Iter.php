@@ -6,10 +6,11 @@ class Gongo_Db_Iter implements Iterator
 	protected $sql = null;
 	protected $params = null;
 	protected $fetchType = PDO::FETCH_ASSOC;
+	protected $strict = false;
 	protected $row = null;
 	protected $index = 0;
 	
-	public function __construct(PDO $pdo = null, $query = null, $params = null, $fetchType = null)
+	public function __construct(PDO $pdo = null, $query = null, $params = null, $fetchType = null, $strict = null)
 	{
 		if (!is_null($pdo)) {
 			$this->set($pdo);
@@ -19,6 +20,9 @@ class Gongo_Db_Iter implements Iterator
 		}
 		if (!is_null($fetchType)) {
 			$this->type($fetchType);
+		}
+		if (!is_null($strict)) {
+			$this->strict($strict);
 		}
 		if (!is_null($params)) {
 			$this->params($params);
@@ -43,6 +47,12 @@ class Gongo_Db_Iter implements Iterator
 		return $this;
 	}
 
+	public function strict($strict)
+	{
+		$this->strict = $strict;
+		return $this;
+	}
+
 	public function params($params)
 	{
 		$this->params = $params;
@@ -56,7 +66,7 @@ class Gongo_Db_Iter implements Iterator
 				$this->statement = $this->pdo->query($this->sql);
 			} else {
 				$this->statement = $this->pdo->prepare($this->sql);
-				$this->statement->execute($this->params);
+				$this->execute($this->statement, $this->params, $this->strict);
 			}
 		}
 		$this->row = $this->statement->fetch($this->fetchType, 0);
@@ -85,5 +95,23 @@ class Gongo_Db_Iter implements Iterator
 	
 	public function key() {
 		return $this->index;
+	}
+
+	protected function execute($st, $params, $strict = false)
+	{
+		if (!$strict) return $st->execute($params);
+		foreach ($params as $k => $v) {
+			$k = is_int($k) ? $k+1 : $k ;
+			$st->bindValue($k, $v, $this->bindType($k, $v));
+		}
+		return $st->execute();
+	}
+
+	protected function bindType($k, $v)
+	{
+		if (is_int($v)) return PDO::PARAM_INT;
+		if (is_bool($v)) return PDO::PARAM_BOOL;
+		if (is_null($v)) return PDO::PARAM_NULL;
+		return PDO::PARAM_STR;
 	}
 }
