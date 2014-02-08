@@ -45,7 +45,7 @@ class Gongo
 		$className = array_shift($args);
 		return Gongo_Locator::make('Gongo_' . $className, $args);
 	}
-	
+
 	function __get($name)
 	{
 		return self::get($name);
@@ -67,7 +67,7 @@ if (!function_exists('quote')) {
 }
 
 if (!function_exists('bind')) {
-    function bind($callback) { 
+    function bind($callback) {
 		$args = func_get_args();
 		array_shift($args);
 		return Gongo_Fn_Partial::apply($callback, $args);

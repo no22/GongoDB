@@ -36,7 +36,6 @@ class Gongo_Db_GoQL
 	protected $_defaultMethod = 'all';
 	protected $_returnRowCount = false;
 	protected $_ignoreKeys = array();
-	protected $_wantKeys = array();
 	protected $_arguments = array();
 	protected $_currentParams = null;
 
@@ -82,19 +81,6 @@ class Gongo_Db_GoQL
 	public function addIgnoreKey($key)
 	{
 		$this->_ignoreKeys[] = $key;
-		return $this;
-	}
-	
-	public function wantKeys($wantKeys = null)
-	{
-		if (is_null($wantKeys)) return $this->_wantKeys;
-		$this->_wantKeys = $wantKeys;
-		return $this;
-	}
-
-	public function addWantKey($key)
-	{
-		$this->_wantKeys[] = $key;
 		return $this;
 	}
 	

@@ -231,7 +231,9 @@ class Gongo_Db_Mapper
 		foreach ($this->currentArgs as $k => $v) {
 			if (strpos($k, '#', strlen($k) - 1) !== false) unset($this->currentArgs[$k]);
 		}
-		return array($sql, $this->currentArgs);
+		$unusedArgs = array_diff_key($args, $this->argsCount);
+		$currentArgs = array_diff_key($this->currentArgs, $unusedArgs);
+		return array($sql, $currentArgs);
 	}
 
 	function _prepareFields($q, $fields, $inner = false) 
@@ -351,7 +353,7 @@ class Gongo_Db_Mapper
 		return $q . str_replace($q, $q.$q, $name) . $q;
 	}
 
-	protected function makeColumnLabel($bean, $eq = false, $ignore = null, $want = null)
+	protected function makeColumnLabel($bean, $eq = false, $ignore = null)
 	{
 		$col = array();
 		$param = array();
@@ -360,11 +362,9 @@ class Gongo_Db_Mapper
 			if (is_null($ignore) || !in_array($k, $ignore)) {
 				$id = $this->identifier($k);
 				$col[] = $id . ($eq ? "=:{$k}" : '');
-				$param[':' . $k] = $v;
 				$var[] = ':' . $k;
-			} else if (!is_null($want) && in_array($k, $want)) {
-				$param[':' . $k] = $v;
 			}
+			$param[':' . $k] = $v;
 		}
 		return array($col, $param, $var);
 	}
@@ -377,10 +377,10 @@ class Gongo_Db_Mapper
 			$bean->{$this->modifiedDateColumn()} = $current;
 		}
 		$q = is_null($q) ? $this->query() : $q ;
-		$ignoreKeys = $q->ignoreKeys();
-		$wantKeys = $q->wantKeys();
-		list($col, $param, $var) = $this->makeColumnLabel($bean, false, $ignoreKeys, $wantKeys);
-		$result = $q->insert()->into($this->tableName() . ' (' . implode(',', $col) .')')->values('(' . implode(',', $var) .')')->exec($param);
+		list($col, $param, $var) = $this->makeColumnLabel($bean, false, $q->ignoreKeys());
+		$result =
+			$q->insert()->into($this->tableName() . ' (' . implode(',', $col) .')')
+			->values('(' . implode(',', $var) .')')->exec($param);
 		if ($result) {
 			$bean->{$this->primaryKey()} = $this->lastInsertId();
 		}
@@ -399,11 +399,11 @@ class Gongo_Db_Mapper
 		$pk = $this->primaryKey();
 		$ignoreKeys = array($pk);
 		$ignoreKeys = array_merge($ignoreKeys, $q->ignoreKeys());
-		$wantKeys = array($pk);
-		$wantKeys = array_merge($wantKeys, $q->wantKeys());
-		list($set, $param, $var) = $this->makeColumnLabel($bean, true, $ignoreKeys, $wantKeys);
+		list($set, $param, $var) = $this->makeColumnLabel($bean, true, $ignoreKeys);
 		$pkid = $this->identifier($pk);
-		return $q->update($this->tableName())->set(implode(',', $set))->where("{$pkid} = :{$pk}")->rowCount($returnRowCount)->exec($param);
+		return
+			$q->update($this->tableName())->set(implode(',', $set))
+			->where("{$pkid} = :{$pk}")->rowCount($returnRowCount)->exec($param);
 	}
 	
 	function save($bean, $q = null)
@@ -421,11 +421,15 @@ class Gongo_Db_Mapper
 			$pk = $this->primaryKey();
 			$q = is_null($q) ? $this->query() : $q ;
 			$pkid = $this->identifier($pk);
-			return $q->delete()->from($this->tableName())->where("{$pkid} = :{$pk}")->rowCount($returnRowCount)->exec(array(":{$pk}" => $id));
+			return
+				$q->delete()->from($this->tableName())->where("{$pkid} = :{$pk}")
+				->rowCount($returnRowCount)->exec(array(":{$pk}" => $id));
 		}
 		$q = is_null($q) ? $this->query() : $q ;
-		list($set, $param, $var) = $this->makeColumnLabel($id, true, $q->ignoreKeys(), $q->wantKeys());
-		return $q->delete()->from($this->tableName())->where($set)->rowCount($returnRowCount)->exec($param);
+		list($set, $param, $var) = $this->makeColumnLabel($id, true, $q->ignoreKeys());
+		return
+			$q->delete()->from($this->tableName())->where($set)
+			->rowCount($returnRowCount)->exec($param);
 	}
 
 	function get($id = null, $q = null, $empty = false)
@@ -434,7 +438,9 @@ class Gongo_Db_Mapper
 		$pk = $this->primaryKey();
 		$q = is_null($q) ? $this->query() : $q ;
 		$pkid = $this->identifier($pk);
-		$bean = $q->select('*')->from($this->tableName())->where("{$pkid} = :{$pk}")->first(array(":{$pk}" => $id));
+		$bean =
+			$q->select('*')->from($this->tableName())
+			->where("{$pkid} = :{$pk}")->first(array(":{$pk}" => $id));
 		if (!$empty) return $bean;
 		return $bean ? $bean : $this->bean() ;
 	}
