@@ -23,6 +23,7 @@ class Gongo_Db_GoQL
 		'having' => array('having', '___addQuery'),
 		'orderBy' => array('orderby', '___setQuery'),
 		'limit' => array('limit', '___setQuery'),
+		'union' => array('union', '___addQuery'),
 		'end' => array('%', '___setQuery'),
 		'params' => array('params', '___addQuery'),
 		'method' => array('method', '___setQuery'),
@@ -64,13 +65,13 @@ class Gongo_Db_GoQL
 		$this->_namedScopes[$alias] = $query;
 		return $this;
 	}
-	
+
 	public function rowCount($returnRowCount = true)
 	{
 		$this->_returnRowCount = $returnRowCount;
 		return $this;
 	}
-	
+
 	public function ignoreKeys($ignoreKeys = null)
 	{
 		if (is_null($ignoreKeys)) return $this->_ignoreKeys;
@@ -83,7 +84,7 @@ class Gongo_Db_GoQL
 		$this->_ignoreKeys[] = $key;
 		return $this;
 	}
-	
+
 	public function __get($key)
 	{
 		if (isset($this->_namedScopes[$key])) {

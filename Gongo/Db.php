@@ -11,7 +11,7 @@ class Gongo_Db
 	protected $_entityClass = 'Gongo_Bean';
 	protected $_iteratorClass = 'Gongo_Db_Iter';
 	protected $_strict = false;
-	
+
 	static function setLog($log = null)
 	{
 		self::$_defaultLog = is_null($log) ? Gongo_Locator::get('Gongo_Log', 'sqllog.txt') : $log ;
@@ -28,19 +28,19 @@ class Gongo_Db
 		$this->_log = is_null($log) ? self::$_defaultLog : $log ;
 		$this->pdo($db);
 	}
-	
+
 	function pdo($pdo = null)
 	{
 		if (is_null($pdo)) return $this->_db;
 		$this->_db = $pdo;
 		return $this;
 	}
-	
+
 	function setQueryLog($log)
 	{
 		$this->_log = $log;
 	}
-	
+
 	protected function log($sql, $params)
 	{
 		if (!is_null($this->_log)) {
@@ -58,7 +58,7 @@ class Gongo_Db
 	{
 		$this->_log->add($text, $email);
 	}
-	
+
 	function prepareSql($sql, $params)
 	{
 		if (is_null($params)) {
@@ -66,18 +66,18 @@ class Gongo_Db
 		}
 		$this->_inClause = array();
 		$this->_currentParams = $params;
-		
+
 		$sql = preg_replace_callback('/IN\s*\((:\w+)\)/',
 			array($this, '_expandInClauseCallback'), $sql
 		);
-		
+
 		foreach ($this->_inClause as $k => $v) {
 			unset($params[$k]);
 			$params = $params + $v;
 		}
 		return array($sql, $params);
 	}
-	
+
 	function _expandInClauseCallback($matches)
 	{
 		$key = $matches[1];
@@ -92,7 +92,7 @@ class Gongo_Db
 		}
 		return $matches[0];
 	}
-	
+
 	function entityClass($value = null)
 	{
 		if (is_null($value)) return $this->_entityClass;
@@ -113,7 +113,7 @@ class Gongo_Db
 		$this->_strict = $value;
 		return $this;
 	}
-	
+
 	function iter($sql, $params = null, $strict = null)
 	{
 		$strict = is_null($strict) ? $this->strict() : $strict ;
@@ -131,7 +131,7 @@ class Gongo_Db
 	{
 		return $this->iter($sql, $params, $strict)->map(array($this, 'bean'));
 	}
-	
+
 	function row($sql, $params = null, $strict = null)
 	{
 		list($sql, $params) = $this->prepareSql($sql, $params);
@@ -188,17 +188,17 @@ class Gongo_Db
 	{
 		return $this->pdo()->beginTransaction();
 	}
-	
+
 	function commit()
 	{
 		return $this->pdo()->commit();
 	}
-	
+
 	function rollBack()
 	{
 		return $this->pdo()->rollBack();
 	}
-		
+
 	function classPrefix($value = null)
 	{
 		if (is_null($value)) return $this->_classPrefix;
@@ -210,7 +210,7 @@ class Gongo_Db
 	{
 		return $this->_classPrefix . $name ;
 	}
-	
+
 	function tablePrefix($value = null)
 	{
 		if (is_null($value)) return $this->_tablePrefix;
@@ -220,6 +220,7 @@ class Gongo_Db
 
 	function tableName($name)
 	{
+		if ($name == '') return false;
 		return $this->_tablePrefix . $name ;
 	}
 
@@ -227,7 +228,7 @@ class Gongo_Db
 	{
 		return (int) $this->pdo()->lastInsertId($col);
 	}
-	
+
 	function __get($name)
 	{
 		$className = $this->className($name);

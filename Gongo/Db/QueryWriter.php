@@ -10,13 +10,14 @@ class Gongo_Db_QueryWriter
 		'$and' => 'AND',
 		'$not' => 'NOT',
 		'$between' => 'BETWEEN',
+		'$in' => 'IN',
 	);
-	
+
 	protected $clause = array(
 		'#' => array('', 'buildClause', 2),
 		'select' => array('SELECT', 'buildClause', 1),
 		'insert' => array('INSERT', 'buildClause', 1),
-		'into' => array('INTO', 'buildClause', 1),
+		'into' => array('INTO', 'buildClause', 4),
 		'update' => array('UPDATE', 'buildClause', 1),
 		'delete' => array('DELETE', 'buildClause', 1),
 		'from' => array('FROM', 'buildClause', 1),
@@ -30,6 +31,7 @@ class Gongo_Db_QueryWriter
 		'having' => array('HAVING', 'buildWhere', 1),
 		'orderby' => array('ORDER BY', 'buildClause', 1),
 		'limit' => array('LIMIT', 'buildClause', 1),
+		'union' => array('UNION', 'buildClause', 2),
 		'%' => array('', 'buildClause', 2),
 	);
 
@@ -39,7 +41,7 @@ class Gongo_Db_QueryWriter
 		$this->namedScopes = $value;
 		return $this;
 	}
-	
+
 	function defaultTable($value = null)
 	{
 		if (is_null($value)) return $this->defaultTable;
@@ -78,13 +80,15 @@ class Gongo_Db_QueryWriter
 		foreach ($this->clause as $key => $value) {
 			list($phrase, $build, $type) = $value;
 			if (isset($query[$key]) && !empty($query[$key])) {
-				$exps[] = $phrase;
+				if ($phrase !== 'UNION' || isset($query['select'])) $exps[] = $phrase;
 				if ($type === 1) {
 					$exps[] = $this->{$build}($query[$key]);
 				} else if ($type === 2) {
 					$exps[] = $this->{$build}($query[$key], ' ' . $phrase . ' ');
 				} else if ($type === 3) {
 					$exps[] = $this->{$build}($query[$key], ', ', ' = ', false);
+				} else if ($type === 4) {
+					$exps[] = $this->{$build}($query[$key], ' ');
 				}
 			}
 		}
@@ -94,7 +98,7 @@ class Gongo_Db_QueryWriter
 	function buildSelectQuery($query = array(), $namedScopes = null)
 	{
 		if (!is_null($namedScopes)) $this->namedScopes($namedScopes);
-		if (!isset($query['select'])) {
+		if (!isset($query['select']) && !isset($query['union'])) {
 			$query['select'] = '*';
 		}
 		if (!isset($query['from']) && $this->defaultTable() != '') {
@@ -173,22 +177,27 @@ class Gongo_Db_QueryWriter
 					} else if (is_array($o)) {
 						$on = $this->buildWhere($o);
 					}
-					$p = ($delim !== '  ' ? '' : $t . ' ') . $join . ' AS ' . $k . ' ON ' . $on ; 
+					$p = ($delim !== '  ' ? '' : $t . ' ') . $join . ' AS ' . $k . ' ON ' . $on ;
 				}
 			}
 			$newPhrase[] = $p;
 		}
 		return implode($delim === '  ' ? ' ' : $delim, $newPhrase) ;
 	}
-	
+
 	function buildWhere($cond, $mode = 'AND')
 	{
 		if ($mode === 'NOT') {
 			return $mode . ' ' . $this->buildWhere($cond, 'AND');
 		} else if ($mode === 'BETWEEN') {
+			$col = !is_array($cond[0]) ? $cond[0] : '(' . $this->buildSubQuery($cond[0]) . ')' ;
 			$min = !is_array($cond[1]) ? $cond[1] : '(' . $this->buildSubQuery($cond[1]) . ')' ;
 			$max = !is_array($cond[2]) ? $cond[2] : '(' . $this->buildSubQuery($cond[2]) . ')' ;
-			return $cond[0] . ' BETWEEN ' . $min . ' AND ' . $max ;
+			return $col . ' BETWEEN ' . $min . ' AND ' . $max ;
+		} else if ($mode === 'IN') {
+			$col = !is_array($cond[0]) ? $cond[0] : '(' . $this->buildSubQuery($cond[0]) . ')' ;
+			$set = !is_array($cond[1]) ? $cond[1] : '(' . $this->buildSubQuery($cond[1]) . ')' ;
+			return $col . ' IN ' . $set;
 		}
 		if (!is_array($cond)) return $cond ;
 		if (strpos($mode, '#') === 0) {
