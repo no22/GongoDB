@@ -459,14 +459,19 @@ class Gongo_Db_Mapper
 	function get($id = null, $q = null, $empty = false)
 	{
 		if (!$id) return $this->bean();
-		$pk = $this->primaryKey();
+		if (is_int($id) || is_numeric($id) || is_string($id)) {
+			$pk = $this->primaryKey();
+			$q = is_null($q) ? $this->query() : $q ;
+			$pkid = $this->identifier($pk);
+			$bean =
+				$q->select('*')->from($this->tableName())
+				->where("{$pkid} = :{$pk}")->first(array(":{$pk}" => $id));
+			if (!$empty) return $bean;
+			return $bean ? $bean : $this->bean() ;
+		}
 		$q = is_null($q) ? $this->query() : $q ;
-		$pkid = $this->identifier($pk);
-		$bean =
-			$q->select('*')->from($this->tableName())
-			->where("{$pkid} = :{$pk}")->first(array(":{$pk}" => $id));
-		if (!$empty) return $bean;
-		return $bean ? $bean : $this->bean() ;
+		list($set, $param, $var) = $this->makeColumnLabel($id, true, $q->ignoreKeys());
+		return $q->from($this->tableName())->where($set)->first($param);
 	}
 
 	function getRelationMapper($key)
