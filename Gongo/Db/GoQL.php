@@ -153,9 +153,10 @@ class Gongo_Db_GoQL
 		return $this;
 	}
 
-	public function getQuery()
+	public function getQuery($clause = null)
 	{
-		return $this->_query;
+		if (is_null($clause)) return $this->_query;
+		return isset($this->_query[$clause]) ? $this->_query[$clause] : null ;
 	}
 
 	public function ___bindParams($args, $params)
