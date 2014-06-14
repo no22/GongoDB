@@ -307,6 +307,7 @@ class Gongo_Db_Mapper
 		$join = array();
 		$select = array();
 		foreach ($fields as $k => $v) {
+			$distinct = false;
 			if (is_int($k)) {
 				$pos = stripos($v, ' AS ');
 				if ($pos !== false) {
@@ -314,12 +315,17 @@ class Gongo_Db_Mapper
 					$v = trim(substr($v, 0, $pos));
 				}
 			}
+			$pos = stripos($v, 'DISTINCT ');
+			if ($pos !== false) {
+				$v = trim(substr($v, $pos+9));
+				$distinct = true;
+			}
 			if (strpos($v, '.') === false) $v = $this->defaultTableAlias . "." . $v;
 			list($table, $col) = explode('.', $v);
 			if ($table !== $this->defaultTableAlias && !in_array($table, $join)) {
 				$join[] = $table;
 			}
-			$column = $this->identifier($table) . '.' . $this->identifier($col);
+			$column = ($distinct ? 'DISTINCT ' : '') . $this->identifier($table) . '.' . $this->identifier($col);
 			if (!is_int($k)) $column .= ' AS ' . $this->identifier($k);
 			$select[] = $column;
 		}
@@ -393,7 +399,17 @@ class Gongo_Db_Mapper
 	{
 		$strict = is_null($strict) ? $this->strict() : $strict ;
 		$query = $this->setFromTable($query);
-		$query['select'] = "count(*) AS count";
+		if (isset($query['count'])) {
+			if (is_array($query['count'])) {
+				foreach ($query['count'] as $k => $v) {
+					$query[$k] = $v;
+				}
+			} else {
+				$query['select'] = $query['count'];
+			}
+		} else {
+			$query['select'] = "count(*) AS count";
+		}
 		list($sql, $args) = $this->_sql($query, $args, $boundParams, true);
 		$bean = $this->db()->first($sql, $args, $strict);
 		return $bean ? (int) $bean->count : null ;

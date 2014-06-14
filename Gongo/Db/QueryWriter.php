@@ -11,6 +11,9 @@ class Gongo_Db_QueryWriter
 		'$not' => 'NOT',
 		'$between' => 'BETWEEN',
 		'$in' => 'IN',
+		'$exists' => 'EXISTS',
+		'$any' => 'ANY',
+		'$some' => 'SOME',
 	);
 
 	protected $clause = array(
@@ -198,6 +201,14 @@ class Gongo_Db_QueryWriter
 			$col = !is_array($cond[0]) ? $cond[0] : '(' . $this->buildSubQuery($cond[0]) . ')' ;
 			$set = !is_array($cond[1]) ? $cond[1] : '(' . $this->buildSubQuery($cond[1]) . ')' ;
 			return $col . ' IN ' . $set;
+		} else if ($mode === 'EXISTS') {
+			$set = !is_array($cond) ? $cond : '(' . $this->buildSubQuery($cond) . ')' ;
+			return $mode . ' ' . $set;
+		} else if ($mode === 'ANY' || $mode === 'SOME') {
+			$col = !is_array($cond[0]) ? $cond[0] : '(' . $this->buildSubQuery($cond[0]) . ')' ;
+			$opr = !is_array($cond[1]) ? $cond[1] : '(' . $this->buildSubQuery($cond[1]) . ')' ;
+			$set = !is_array($cond[2]) ? $cond[2] : '(' . $this->buildSubQuery($cond[2]) . ')' ;
+			return $col . ' ' . $opr . ' ' . $mode . ' ' . $set;
 		}
 		if (!is_array($cond)) return $cond ;
 		if (strpos($mode, '#') === 0) {
