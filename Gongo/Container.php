@@ -15,18 +15,18 @@ class Gongo_Container
 		$this->factory = Gongo_Locator::getInstance();
 		$this->initializeComponents($aComponents);
 	}
-	
+
 	public function __call($sName, $aArg)
 	{
-		if (strpos($sName, '_', 0) === 0) {
+		if ($sName[0] === '_') {
 			return Gongo_Fn_Partial::apply(array($this, substr($sName, 1)), $aArg);
 		}
 	}
 
 	public function __get($sName)
 	{
-		if (strpos($sName, '_', 0) === 0) {
-			if (strpos($sName, '_', 1) !== 1) {
+		if ($sName[0] === '_') {
+			if ($sName[1] !== '_') {
 				return $this->factory->getObj('Gongo_Container_Promise', $this, substr($sName, 1));
 			}
 			$sName = substr($sName, 2);
@@ -37,6 +37,26 @@ class Gongo_Container
 		return null;
 	}
 
+	protected function mergeComponents($aParentComponents, $aComponents)
+	{
+		foreach ($aComponents as $key => $value) {
+			if ($key[0] === '+' && is_array($value)) {
+				$normKey = '-' . substr($key, 1);
+				if (isset($aParentComponents[$key])) {
+					$aParentComponents[$normKey] = $aParentComponents[$key];
+					unset($aParentComponents[$key]);
+				}
+				if (isset($aParentComponents[$normKey])) {
+					$aComponents[$normKey] = array_merge($aParentComponents[$normKey], $value);
+				} else {
+					$aComponents[$normKey] = $value;
+				}
+				unset($aComponents[$key]);
+			}
+		}
+		return array_merge($aParentComponents, $aComponents);
+	}
+
 	public function componentClasses($sClass = null)
 	{
 		$sClass = is_null($sClass) ? get_class($this) : $sClass ;
@@ -45,18 +65,18 @@ class Gongo_Container
 		$sParent = get_parent_class($sClass);
 		if (!$sParent) return $aComponents;
 		$aParentComponents = $this->componentClasses($sParent);
-		return array_merge($aParentComponents, $aComponents);
+		return $this->mergeComponents($aParentComponents, $aComponents);
 	}
 
 	public function initializeComponents($aInjectComponents = null)
 	{
 		$aComponents = $this->componentClasses();
 		if (!is_null($aInjectComponents)) {
-			$aComponents = array_merge($aComponents, $aInjectComponents);
+			$aComponents = $this->mergeComponents($aComponents, $aInjectComponents);
 		}
 		$aOptions = array();
 		foreach ($aComponents as $sKey => $sClass) {
-			if (strpos($sKey, '-', 0) === 0) {
+			if ($sKey[0] === '-') {
 				$aOptions[substr($sKey,1)] = $sClass;
 			} else if (is_array($sClass)) {
 				$args = $sClass;
@@ -92,7 +112,7 @@ class Gongo_Container
 		}
 		return $this;
 	}
-	
+
 	public function afterInit($sName, $callback)
 	{
 		if (isset($this->components[$sName])) {
@@ -104,7 +124,7 @@ class Gongo_Container
 	{
 		$this->components[$sName] = $callback;
 	}
-	
+
 	public function defaultValue($options, $sName, $mValue)
 	{
 		if (!isset($options[$sName])) {

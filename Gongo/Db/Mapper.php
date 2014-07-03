@@ -58,10 +58,25 @@ class Gongo_Db_Mapper
 		if (!is_null($db)) $this->db($db);
 		if (!is_null($table)) $this->table($table);
 		if (!is_null($pk)) $this->primaryKey($pk);
-		if (!is_null($namedScopes)) $this->namedScopes($namedScopes);
+		$inheritedNamedScopes = $this->inheritNamedScopes();
+		if (!is_null($namedScopes)) {
+			$inheritedNamedScopes = array_merge($inheritedNamedScopes, $namedScopes);
+		}
+		$this->namedScopes($inheritedNamedScopes);
 		$queryWriter = is_null($queryWriter) ? Gongo_Locator::get('Gongo_Db_QueryWriter') : $queryWriter ;
 		$this->queryWriter($queryWriter);
 		$this->setQueryWriterDefaultTableName();
+	}
+
+	public function inheritNamedScopes($sClass = null)
+	{
+		$sClass = is_null($sClass) ? get_class($this) : $sClass ;
+		$aVars = get_class_vars($sClass);
+		$aNamedScopes = isset($aVars['namedScopes']) ? $aVars['namedScopes'] : array() ;
+		$sParent = get_parent_class($sClass);
+		if (!$sParent) return $aNamedScopes;
+		$aParentNamedScopes = $this->inheritNamedScopes($sParent);
+		return array_merge($aParentNamedScopes, $aNamedScopes);
 	}
 
 	function setQueryWriterDefaultTableName()

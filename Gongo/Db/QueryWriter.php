@@ -3,6 +3,7 @@ class Gongo_Db_QueryWriter
 {
 	protected $defaultBuilder = 'Gongo_Db_GoQL';
 	protected $namedScopes = array();
+	protected $importedScopes = array();
 	protected $defaultTable = '';
 
 	protected $operator = array(
@@ -14,6 +15,7 @@ class Gongo_Db_QueryWriter
 		'$exists' => 'EXISTS',
 		'$any' => 'ANY',
 		'$some' => 'SOME',
+		'$all' => 'ALL',
 	);
 
 	protected $clause = array(
@@ -42,6 +44,13 @@ class Gongo_Db_QueryWriter
 	{
 		if (is_null($value)) return $this->namedScopes;
 		$this->namedScopes = $value;
+		return $this;
+	}
+
+	function importedScopes($value = null)
+	{
+		if (is_null($value)) return $this->importedScopes;
+		$this->importedScopes = $value;
 		return $this;
 	}
 
@@ -79,6 +88,7 @@ class Gongo_Db_QueryWriter
 	function build($query = array(), $namedScopes = null)
 	{
 		if (!is_null($namedScopes)) $this->namedScopes($namedScopes);
+		if (isset($query['import'])) $this->importedScopes($query['import']);
 		$exps = array();
 		foreach ($this->clause as $key => $value) {
 			list($phrase, $build, $type) = $value;
@@ -101,6 +111,7 @@ class Gongo_Db_QueryWriter
 	function buildSelectQuery($query = array(), $namedScopes = null)
 	{
 		if (!is_null($namedScopes)) $this->namedScopes($namedScopes);
+		if (isset($query['import'])) $this->importedScopes($query['import']);
 		if (!isset($query['select']) && !isset($query['union'])) {
 			$query['select'] = '*';
 		}
@@ -110,16 +121,38 @@ class Gongo_Db_QueryWriter
 		return $this->build($query);
 	}
 
-	function newBuilder()
+	function getImportedScopes($alias, $name = null)
 	{
-		return Gongo_Locator::get($this->defaultBuilder)->namedScopes($this->namedScopes());
+		$scopes = $this->importedScopes[$alias];
+		if (is_string($scopes)) {
+			$obj = Gongo_Locator::get($scopes);
+			$this->importedScopes[$alias] = $obj->namedScopes();
+		}
+		if (is_null($name)) return $this->importedScopes[$alias];
+		return $this->importedScopes[$alias][$name];
+	}
+
+	function newBuilder($alias = null)
+	{
+		if (is_null($alias)) return Gongo_Locator::get($this->defaultBuilder)->namedScopes($this->namedScopes());
+		return Gongo_Locator::get($this->defaultBuilder)->namedScopes($this->getImportedScopes($alias));
 	}
 
 	function subQuery($scopes)
 	{
-		$q = $this->newBuilder();
+		//$q = $this->newBuilder();
+		$q = null;
 		foreach ($scopes as $key => $scope) {
-			if (!is_string($key) && is_string($scope)) $q->{$scope};
+			if (!is_string($key) && is_string($scope)) {
+				$dotpos = strpos($scope, '.');
+				if ($dotpos === false) {
+					if (is_null($q)) $q = $this->newBuilder();
+					$q->{$scope};
+				} else {
+					if (is_null($q)) $q = $this->newBuilder(substr($scope, 0, $dotpos));
+					$q->{substr($scope, $dotpos+1)};
+				}
+			}
 		}
 		return $q->getQuery();
 	}
@@ -204,19 +237,19 @@ class Gongo_Db_QueryWriter
 		} else if ($mode === 'EXISTS') {
 			$set = !is_array($cond) ? $cond : '(' . $this->buildSubQuery($cond) . ')' ;
 			return $mode . ' ' . $set;
-		} else if ($mode === 'ANY' || $mode === 'SOME') {
+		} else if ($mode === 'ANY' || $mode === 'SOME' || $mode === 'ALL') {
 			$col = !is_array($cond[0]) ? $cond[0] : '(' . $this->buildSubQuery($cond[0]) . ')' ;
 			$opr = !is_array($cond[1]) ? $cond[1] : '(' . $this->buildSubQuery($cond[1]) . ')' ;
 			$set = !is_array($cond[2]) ? $cond[2] : '(' . $this->buildSubQuery($cond[2]) . ')' ;
 			return $col . ' ' . $opr . ' ' . $mode . ' ' . $set;
 		}
 		if (!is_array($cond)) return $cond ;
-		if (strpos($mode, '#') === 0) {
+		if ($mode[0] === '#') {
 			return substr($mode, 1) . ' (' . $this->buildSubQuery($cond) . ')';
 		}
 		$exps = array();
 		foreach ($cond as $k => $v) {
-			$m = isset($this->operator[$k]) ? $this->operator[$k] : (strpos($k,'#') === 0 ? $k : 'AND') ;
+			$m = isset($this->operator[$k]) ? $this->operator[$k] : ($k[0] === '#' ? $k : 'AND') ;
 			$exps[] = $this->buildWhere($v, $m);
 		}
 		$exp = implode(" {$mode} ", $exps);

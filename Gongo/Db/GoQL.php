@@ -5,6 +5,7 @@ class Gongo_Db_GoQL
 {
 	protected $_query = array();
 	protected $_namedScopes = array();
+	protected $_importedScopes = array();
 	protected $_clause = array(
 		'begin' => array('#', '___setQuery'),
 		'select' => array('select', '___addQuery'),
@@ -33,6 +34,7 @@ class Gongo_Db_GoQL
 		'ifields' => array('ifields', '___addQuery'),
 		'strict' => array('strict', '___setQuery'),
 		'count' => array('count', '___setQuery'),
+		'import' => array('import', '___addQuery'),
 	);
 	protected $_clauseMap = array();
 	protected $_defaultMethod = 'all';
@@ -86,10 +88,33 @@ class Gongo_Db_GoQL
 		return $this;
 	}
 
+	protected function getImportedScopes($alias, $name = null)
+	{
+		if (!isset($this->_importedScopes[$alias])) {
+			$obj = Gongo_Locator::get($this->_query['import'][$alias]);
+			$this->_importedScopes[$alias] = $obj->namedScopes();
+		}
+		if (is_null($name)) return $this->_importedScopes[$alias];
+		return $this->_importedScopes[$alias][$name];
+	}
+
+	protected function getImportedScope($key, $pos = null)
+	{
+		$dotpos = is_null($pos) ? strpos($key, '.') : $pos ;
+		if ($dotpos === false) throw Gongo_Locator::get('Gongo_Db_GoQlException', "{$key} was not found in namedScopes");
+		$alias = substr($key, 0, $dotpos);
+		$name = substr($key, $dotpos+1);
+		return $this->getImportedScopes($alias, $name);
+	}
+
 	public function __get($key)
 	{
 		if (isset($this->_namedScopes[$key])) {
 			return $this->setQuery($this->_namedScopes[$key]);
+		}
+		$dotpos = strpos($key, '.');
+		if ($dotpos !== false) {
+			return $this->setQuery($this->getImportedScope($key, $dotpos));
 		}
 		throw Gongo_Locator::get('Gongo_Db_GoQlException', "{$key} was not found in namedScopes");
 	}
@@ -105,7 +130,7 @@ class Gongo_Db_GoQL
 			$methodName = is_array($methodName) ? $methodName[0] : $methodName ;
 			return call_user_func_array(array($this, $methodName), $aArgs);
 		}
-		if (strpos($sName, '_') === 0) {
+		if ($sName[0] === '_') {
 			$sName = substr($sName, 1);
 			if (isset($this->_namedScopes[$sName])) {
 				$query = $this->_namedScopes[$sName];
