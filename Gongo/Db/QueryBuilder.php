@@ -10,7 +10,7 @@ class Gongo_Db_QueryBuilder extends Gongo_Db_GoQL
 		$this->namedScopes($collection->namedScopes());
 		parent::__construct();
 	}
-	
+
 	public function iter()
 	{
 		$args = func_get_args();

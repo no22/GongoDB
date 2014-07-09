@@ -3,7 +3,6 @@ class Gongo_Db_QueryWriter
 {
 	protected $defaultBuilder = 'Gongo_Db_GoQL';
 	protected $namedScopes = array();
-	protected $importedScopes = array();
 	protected $defaultTable = '';
 
 	protected $operator = array(
@@ -47,13 +46,6 @@ class Gongo_Db_QueryWriter
 		return $this;
 	}
 
-	function importedScopes($value = null)
-	{
-		if (is_null($value)) return $this->importedScopes;
-		$this->importedScopes = $value;
-		return $this;
-	}
-
 	function defaultTable($value = null)
 	{
 		if (is_null($value)) return $this->defaultTable;
@@ -88,7 +80,6 @@ class Gongo_Db_QueryWriter
 	function build($query = array(), $namedScopes = null)
 	{
 		if (!is_null($namedScopes)) $this->namedScopes($namedScopes);
-		if (isset($query['import'])) $this->importedScopes($query['import']);
 		$exps = array();
 		foreach ($this->clause as $key => $value) {
 			list($phrase, $build, $type) = $value;
@@ -111,7 +102,6 @@ class Gongo_Db_QueryWriter
 	function buildSelectQuery($query = array(), $namedScopes = null)
 	{
 		if (!is_null($namedScopes)) $this->namedScopes($namedScopes);
-		if (isset($query['import'])) $this->importedScopes($query['import']);
 		if (!isset($query['select']) && !isset($query['union'])) {
 			$query['select'] = '*';
 		}
@@ -121,50 +111,22 @@ class Gongo_Db_QueryWriter
 		return $this->build($query);
 	}
 
-	function getImportedScopes($alias, $name = null)
+	function newBuilder()
 	{
-		$scopes = $this->importedScopes[$alias];
-		if (is_string($scopes)) {
-			$obj = Gongo_Locator::get($scopes);
-			$this->importedScopes[$alias] = $obj->namedScopes();
-		}
-		if (is_null($name)) return $this->importedScopes[$alias];
-		return $this->importedScopes[$alias][$name];
-	}
-
-	function newBuilder($alias = null)
-	{
-		if (is_null($alias)) return Gongo_Locator::get($this->defaultBuilder)->namedScopes($this->namedScopes());
-		return Gongo_Locator::get($this->defaultBuilder)->namedScopes($this->getImportedScopes($alias));
+		return Gongo_Locator::get($this->defaultBuilder)->namedScopes($this->namedScopes());
 	}
 
 	function subQuery($scopes)
 	{
-		//$q = $this->newBuilder();
-		$q = null;
-		foreach ($scopes as $key => $scope) {
-			if (!is_string($key) && is_string($scope)) {
-				$dotpos = strpos($scope, '.');
-				if ($dotpos === false) {
-					if (is_null($q)) $q = $this->newBuilder();
-					$q->{$scope};
-				} else {
-					if (is_null($q)) $q = $this->newBuilder(substr($scope, 0, $dotpos));
-					$q->{substr($scope, $dotpos+1)};
-				}
-			}
-		}
+		$q = $this->newBuilder();
+		$q->setQuery($scopes);
 		return $q->getQuery();
 	}
 
 	function buildSubQuery($query = array())
 	{
 		if (is_array($query)) {
-			if (isset($query[0]) && is_string($query[0])) {
-				return $this->buildSelectQuery($this->subQuery($query));
-			} else {
-				return $this->buildSelectQuery($query);
-			}
+			return $this->buildSelectQuery($this->subQuery($query));
 		} else if ($query instanceof Gongo_Db_GoQL) {
 			return $this->buildSelectQuery($query->getQuery());
 		}

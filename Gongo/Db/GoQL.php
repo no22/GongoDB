@@ -26,7 +26,7 @@ class Gongo_Db_GoQL
 		'limit' => array('limit', '___setQuery'),
 		'union' => array('union', '___addQuery'),
 		'end' => array('%', '___setQuery'),
-		'params' => array('params', '___addQuery'),
+		'params' => array('params', '___addParams'),
 		'method' => array('method', '___setQuery'),
 		'bind' => array('bind', '___bindValue'),
 		'entityClass' => array('entityclass', '___setQuery'),
@@ -154,6 +154,25 @@ class Gongo_Db_GoQL
 		return $this;
 	}
 
+	public function ___addParams($clause, $args)
+	{
+		$args = is_string($args) ? array($args) : $args ;
+		$replace = false;
+		if (isset($args['replace'])) {
+			$replace = $args['replace'];
+			unset($args['replace']);
+		}
+		if ($replace) {
+			$this->_query[$clause] = array();
+		}
+		foreach ($args as $key => $phrase) {
+			if (!is_string($key)) {
+				$this->_query[$clause][] = $phrase;
+			}
+		}
+		return $this;
+	}
+
 	public function ___addEmptyQuery($clause, $args)
 	{
 		$args = empty($args) ? array('') : $args ;
@@ -190,6 +209,7 @@ class Gongo_Db_GoQL
 		if (is_null($params)) {
 			$arr = array_shift($args);
 		} else {
+			if (is_array($params) && isset($params['replace'])) unset($params['replace']);
 			$params = is_array($params) ? implode(',', $params) : $params ;
 			$params = is_string($params) ? array_map('trim', explode(',', $params)) : $params ;
 			$arr = array();
