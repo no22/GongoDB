@@ -25,6 +25,7 @@ class Gongo_Db_GoQL
 		'orderBy' => array('orderby', '___setQuery'),
 		'limit' => array('limit', '___setQuery'),
 		'union' => array('union', '___addQuery'),
+		'unionAll' => array('unionall', '___addQuery'),
 		'end' => array('%', '___setQuery'),
 		'params' => array('params', '___addParams'),
 		'method' => array('method', '___setQuery'),
@@ -35,6 +36,7 @@ class Gongo_Db_GoQL
 		'strict' => array('strict', '___setQuery'),
 		'count' => array('count', '___setQuery'),
 		'import' => array('import', '___addQuery'),
+		'as' => array('as', '___setQuery'),
 	);
 	protected $_clauseMap = array();
 	protected $_defaultMethod = 'all';

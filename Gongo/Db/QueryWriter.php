@@ -33,9 +33,10 @@ class Gongo_Db_QueryWriter
 		'where' => array('WHERE', 'buildWhere', 1),
 		'groupby' => array('GROUP BY', 'buildClause', 1),
 		'having' => array('HAVING', 'buildWhere', 1),
+		'union' => array('UNION', 'buildClause', 2),
+		'unionall' => array('UNION ALL', 'buildClause', 2),
 		'orderby' => array('ORDER BY', 'buildClause', 1),
 		'limit' => array('LIMIT', 'buildClause', 1),
-		'union' => array('UNION', 'buildClause', 2),
 		'%' => array('', 'buildClause', 2),
 	);
 
@@ -84,7 +85,7 @@ class Gongo_Db_QueryWriter
 		foreach ($this->clause as $key => $value) {
 			list($phrase, $build, $type) = $value;
 			if (isset($query[$key]) && !empty($query[$key])) {
-				if ($phrase !== 'UNION' || isset($query['select'])) $exps[] = $phrase;
+				if (($phrase !== 'UNION' && $phrase !== 'UNION ALL') || isset($query['select'])) $exps[] = $phrase;
 				if ($type === 1) {
 					$exps[] = $this->{$build}($query[$key]);
 				} else if ($type === 2) {
@@ -102,10 +103,10 @@ class Gongo_Db_QueryWriter
 	function buildSelectQuery($query = array(), $namedScopes = null)
 	{
 		if (!is_null($namedScopes)) $this->namedScopes($namedScopes);
-		if (!isset($query['select']) && !isset($query['union'])) {
+		if (!isset($query['select']) && !isset($query['union']) && !isset($query['unionall'])) {
 			$query['select'] = '*';
 		}
-		if (!isset($query['from']) && $this->defaultTable() != '') {
+		if (!isset($query['from']) && !isset($query['union']) && !isset($query['unionall']) && $this->defaultTable() != '') {
 			$query['from'] = $this->defaultTable();
 		}
 		return $this->build($query);
@@ -123,13 +124,19 @@ class Gongo_Db_QueryWriter
 		return $q->getQuery();
 	}
 
-	function buildSubQuery($query = array())
+	function buildSubQuery($query = array(), $paren = true)
 	{
+		$subquery = '';
+		$as = false;
 		if (is_array($query)) {
-			return $this->buildSelectQuery($this->subQuery($query));
+			$subquery = $this->buildSelectQuery($this->subQuery($query));
 		} else if ($query instanceof Gongo_Db_GoQL) {
-			return $this->buildSelectQuery($query->getQuery());
+			$as = $query->getQuery('as');
+			$subquery =  $this->buildSelectQuery($query->getQuery());
 		}
+		if (!$paren) return $subquery;
+		$subquery = '(' . $subquery . ')';
+		return $as ? $subquery . ' AS ' . $as[0] . ' ' : $subquery ;
 	}
 
 	function buildClause($phrase, $delim = ', ', $conj = ' AS ', $after = true)
@@ -140,8 +147,8 @@ class Gongo_Db_QueryWriter
 			$p = $v;
 			$a = $after ? (!is_string($k) ? '' : $conj . $k) : '' ;
 			$b = $after ? '' : (!is_string($k) ? '' : $k . $conj) ;
-			if (is_array($v)||is_object($v)) {
-				$p = '(' . $this->buildSubQuery($v) . ')';
+			if (is_array($v) || is_object($v)) {
+				$p = $this->buildSubQuery($v);
 			}
 			$newPhrase[] = $b . $p . $a;
 		}
@@ -167,12 +174,12 @@ class Gongo_Db_QueryWriter
 					}
 					if (is_string($j)) {
 						$join = $j;
-					} else if (is_array($j)) {
-						$join = '('. $this->buildSubQuery($j) . ')';
+					} else if (is_array($j) || is_object($j)) {
+						$join = $this->buildSubQuery($j);
 					}
 					if (is_string($o)) {
 						$on = $o;
-					} else if (is_array($o)) {
+					} else if (is_array($o) || is_object($o)) {
 						$on = $this->buildWhere($o);
 					}
 					$p = ($delim !== '  ' ? '' : $t . ' ') . $join . ' AS ' . $k . ' ON ' . $on ;
@@ -183,32 +190,39 @@ class Gongo_Db_QueryWriter
 		return implode($delim === '  ' ? ' ' : $delim, $newPhrase) ;
 	}
 
+	function buildWhereSubQuery($query)
+	{
+		if (!is_array($query) && !is_object($query)) return $query;
+		return $this->buildSubQuery($query);
+	}
+
 	function buildWhere($cond, $mode = 'AND')
 	{
 		if ($mode === 'NOT') {
 			return $mode . ' ' . $this->buildWhere($cond, 'AND');
 		} else if ($mode === 'BETWEEN') {
-			$col = !is_array($cond[0]) ? $cond[0] : '(' . $this->buildSubQuery($cond[0]) . ')' ;
-			$min = !is_array($cond[1]) ? $cond[1] : '(' . $this->buildSubQuery($cond[1]) . ')' ;
-			$max = !is_array($cond[2]) ? $cond[2] : '(' . $this->buildSubQuery($cond[2]) . ')' ;
+			$col = $this->buildWhereSubQuery($cond[0]);
+			$min = $this->buildWhereSubQuery($cond[1]);
+			$max = $this->buildWhereSubQuery($cond[2]);
 			return $col . ' BETWEEN ' . $min . ' AND ' . $max ;
 		} else if ($mode === 'IN') {
-			$col = !is_array($cond[0]) ? $cond[0] : '(' . $this->buildSubQuery($cond[0]) . ')' ;
-			$set = !is_array($cond[1]) ? $cond[1] : '(' . $this->buildSubQuery($cond[1]) . ')' ;
+			$col = $this->buildWhereSubQuery($cond[0]);
+			$set = $this->buildWhereSubQuery($cond[1]);
 			return $col . ' IN ' . $set;
 		} else if ($mode === 'EXISTS') {
-			$set = !is_array($cond) ? $cond : '(' . $this->buildSubQuery($cond) . ')' ;
+			$set = $this->buildWhereSubQuery($cond);
 			return $mode . ' ' . $set;
 		} else if ($mode === 'ANY' || $mode === 'SOME' || $mode === 'ALL') {
-			$col = !is_array($cond[0]) ? $cond[0] : '(' . $this->buildSubQuery($cond[0]) . ')' ;
-			$opr = !is_array($cond[1]) ? $cond[1] : '(' . $this->buildSubQuery($cond[1]) . ')' ;
-			$set = !is_array($cond[2]) ? $cond[2] : '(' . $this->buildSubQuery($cond[2]) . ')' ;
+			$col = $this->buildWhereSubQuery($cond[0]);
+			$opr = $this->buildWhereSubQuery($cond[1]);
+			$set = $this->buildWhereSubQuery($cond[2]);
 			return $col . ' ' . $opr . ' ' . $mode . ' ' . $set;
 		}
-		if (!is_array($cond)) return $cond ;
+		if (!is_array($cond) && !is_object($cond)) return $cond ;
 		if ($mode[0] === '#') {
-			return substr($mode, 1) . ' (' . $this->buildSubQuery($cond) . ')';
+			return substr($mode, 1) . ' ' . $this->buildSubQuery($cond);
 		}
+		if (is_object($cond)) return $this->buildWhere($cond->getQuery('where'));
 		$exps = array();
 		foreach ($cond as $k => $v) {
 			$m = isset($this->operator[$k]) ? $this->operator[$k] : ($k[0] === '#' ? $k : 'AND') ;

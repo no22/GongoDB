@@ -6,7 +6,7 @@ class Gongo_Db_Mapper
 	protected $queryWriter;
 	protected $pk = 'id';
 	protected $entityClass = 'Gongo_Bean';
-	protected $namedScopes = array();
+	public $namedScopes = array();
 	protected $autoPopulate = true;
 	protected $createdDateColumn = 'created';
 	protected $modifiedDateColumn = 'modified';
@@ -215,7 +215,7 @@ class Gongo_Db_Mapper
 
 	function setFromTable($query)
 	{
-		if (!isset($query['from'])) {
+		if (!isset($query['from'])&&!isset($query['union'])&&!isset($query['unionall'])) {
 			$tableName = $this->tableName();
 			if ($tableName) {
 				$query['from'] = $tableName;
@@ -226,7 +226,7 @@ class Gongo_Db_Mapper
 
 	function setSelectColumn($query)
 	{
-		if (!isset($query['select'])) {
+		if (!isset($query['select'])&&!isset($query['union'])&&!isset($query['unionall'])) {
 			$query['select'] = '*';
 		}
 		return $query;
