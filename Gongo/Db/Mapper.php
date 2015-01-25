@@ -8,6 +8,7 @@ class Gongo_Db_Mapper
 	protected $entityClass = 'Gongo_Bean';
 	public $namedScopes = array();
 	protected $autoPopulate = true;
+	protected $autoIncrement = true;
 	protected $createdDateColumn = 'created';
 	protected $modifiedDateColumn = 'modified';
 	protected $quote = '`';
@@ -83,7 +84,7 @@ class Gongo_Db_Mapper
 	{
 		$db = $this->db();
 		if (!is_null($db) && !$this->table()) {
-			$this->queryWriter()->defaultTable($this->tableName());
+			$this->queryWriter()->defaultTable($this->identifier($this->tableName()));
 		}
 	}
 
@@ -147,6 +148,13 @@ class Gongo_Db_Mapper
 	{
 		if (is_null($value)) return $this->autoPopulate;
 		$this->autoPopulate = $value;
+		return $this;
+	}
+
+	function autoIncrement($value = null)
+	{
+		if (is_null($value)) return $this->autoIncrement;
+		$this->autoIncrement = $value;
 		return $this;
 	}
 
@@ -216,7 +224,7 @@ class Gongo_Db_Mapper
 	function setFromTable($query)
 	{
 		if (!isset($query['from'])&&!isset($query['union'])&&!isset($query['unionall'])) {
-			$tableName = $this->tableName();
+			$tableName = $this->identifier($this->tableName());
 			if ($tableName) {
 				$query['from'] = $tableName;
 			}
@@ -241,12 +249,12 @@ class Gongo_Db_Mapper
 	function _replaceTableAliasCallback($m)
 	{
 		$tableName = isset($this->tableAlias[$m[1]]) ? $this->tableAlias[$m[1]] : $m[1] ;
-		return $this->db()->tablePrefix() . $tableName;
+		return $this->identifier($this->db()->tablePrefix() . $tableName);
 	}
 
 	function _replaceTableAlias($str)
 	{
-		if (!$this->tableAlias) return preg_replace('/\[(.*?)\]/', $this->db()->tablePrefix() . '$1', $str);
+		if (!$this->tableAlias) return preg_replace('/\[(.*?)\]/', $this->identifier($this->db()->tablePrefix() . '$1'), $str);
 		return preg_replace_callback(
 			'/\[(.*?)\]/', array($this, '_replaceTableAliasCallback'), $str
 		);
@@ -449,7 +457,7 @@ class Gongo_Db_Mapper
 		return $q . str_replace($q, $q.$q, $name) . $q;
 	}
 
-	protected function makeColumnLabel($bean, $eq = false, $ignore = null)
+	function makeColumnLabel($bean, $eq = false, $ignore = null)
 	{
 		$col = array();
 		$param = array();
@@ -475,9 +483,9 @@ class Gongo_Db_Mapper
 		$q = is_null($q) ? $this->query() : $q ;
 		list($col, $param, $var) = $this->makeColumnLabel($bean, false, $q->ignoreKeys());
 		$result =
-			$q->insert()->into($this->tableName() . ' (' . implode(',', $col) .')')
+			$q->insert()->into($this->identifier($this->tableName()) . ' (' . implode(',', $col) .')')
 			->values('(' . implode(',', $var) .')')->exec($param);
-		if ($result) {
+		if ($result && $this->autoIncrement()) {
 			$bean->{$this->primaryKey()} = $this->lastInsertId();
 		}
 		return $result;
@@ -498,7 +506,7 @@ class Gongo_Db_Mapper
 		list($set, $param, $var) = $this->makeColumnLabel($bean, true, $ignoreKeys);
 		$pkid = $this->identifier($pk);
 		return
-			$q->update($this->tableName())->set(implode(',', $set))
+			$q->update($this->identifier($this->tableName()))->set(implode(',', $set))
 			->where("{$pkid} = :{$pk}")->rowCount($returnRowCount)->exec($param);
 	}
 
@@ -518,13 +526,13 @@ class Gongo_Db_Mapper
 			$q = is_null($q) ? $this->query() : $q ;
 			$pkid = $this->identifier($pk);
 			return
-				$q->delete()->from($this->tableName())->where("{$pkid} = :{$pk}")
+				$q->delete()->from($this->identifier($this->tableName()))->where("{$pkid} = :{$pk}")
 				->rowCount($returnRowCount)->exec(array(":{$pk}" => $id));
 		}
 		$q = is_null($q) ? $this->query() : $q ;
 		list($set, $param, $var) = $this->makeColumnLabel($id, true, $q->ignoreKeys());
 		return
-			$q->delete()->from($this->tableName())->where($set)
+			$q->delete()->from($this->identifier($this->tableName()))->where($set)
 			->rowCount($returnRowCount)->exec($param);
 	}
 
@@ -536,14 +544,14 @@ class Gongo_Db_Mapper
 			$q = is_null($q) ? $this->query() : $q ;
 			$pkid = $this->identifier($pk);
 			$bean =
-				$q->select('*')->from($this->tableName())
+				$q->select('*')->from($this->identifier($this->tableName()))
 				->where("{$pkid} = :{$pk}")->first(array(":{$pk}" => $id));
 			if (!$empty) return $bean;
 			return $bean ? $bean : $this->bean() ;
 		}
 		$q = is_null($q) ? $this->query() : $q ;
 		list($set, $param, $var) = $this->makeColumnLabel($id, true, $q->ignoreKeys());
-		return $q->from($this->tableName())->where($set)->first($param);
+		return $q->from($this->identifier($this->tableName()))->where($set)->first($param);
 	}
 
 	function getRelationMapper($key)

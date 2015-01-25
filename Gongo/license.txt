@@ -1,5 +1,5 @@
 GongoDB
-Written by Hiroyuki OHARA (c) copyright 2011-2014
+Written by Hiroyuki OHARA (c) copyright 2011-2015
 
 GongoDB is dual Licensed MIT and GPLv3. You may choose the 
 license that fits best for your project.
